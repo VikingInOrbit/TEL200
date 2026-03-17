@@ -1,0 +1,9 @@
+MODULE Module1
+
+	PROC main()
+		WHILE TRUE DO
+			WaitTime 0.1;
+		ENDWHILE
+	ENDPROC
+
+ENDMODULE
