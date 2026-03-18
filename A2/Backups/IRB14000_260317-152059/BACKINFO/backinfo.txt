@@ -1,0 +1,59 @@
+#
+# Generated backup file, do not edit.
+#
+# Originally at: C:\Gabriel_Røer\(03) skole\(02)NMBU\Tel200\Project_Assignments_export\YuMi Lab\A2\Virtual Controllers\TEMP\cc649257-246b-4c6e-b4b0-7c3e5f6b5fe4\backup.248943
+# 2026-03-17  15:20:59
+#
+>>SYSTEM_ID:
+VIRTUAL_USE
+
+>>PRODUCTS_ID:
+RobotWare Version: 6.16.03.00
+SmartGripper Version: 3.56.0000.00
+
+  Contact L
+  Leadthrough
+  YuMi AbsAcc Recovery
+  English
+  603-1 Absolute Accuracy
+  988-1 RW Add-In Prepared
+  613-1 Collision Detection
+  709-1 DeviceNet Master/Slave
+  841-1 EtherNet/IP Scanner/Adapter
+  617-1 FlexPendant Interface
+  1341-1/1520-1 Integrated Vision Interface
+  604-1 MultiMove Coordinated
+  623-1 Multitasking
+  612-1 Path Offset
+  611-1 Path Recovery
+  616-1 PC Interface
+  688-1 RobotStudio App Connect
+  608-1 World Zones
+  RobotWare Base
+  Hall Sensor Calibration
+  Drive System IRB 14000
+  IRB 14000-0.5/0.5
+  SmartGripper
+
+>>HOME:
+All public files and directories
+
+>>SYSPAR:
+SYS.cfg
+PROC.cfg
+MMC.cfg
+EIO.cfg
+SIO.cfg
+MOC.cfg
+
+
+>>TASK1: (T_ROB_R,Right_side,)
+PROGMOD\Module1.mod @ 
+PROGMOD\CalibData.mod @ 
+
+>>TASK2: (T_ROB_L,Left_Side,)
+PROGMOD\Module1.mod @ 
+PROGMOD\CalibData.mod @ 
+
+
+>>EOF:

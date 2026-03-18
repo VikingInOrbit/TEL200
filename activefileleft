@@ -106,7 +106,7 @@ MODULE Module1
 
         ! Initialize SmartGripper
         g_Init;
-        g_GripOut;
+        g_JogOut;
         GoHome;
 
         ! Main control loop
@@ -189,12 +189,12 @@ MODULE Module1
         MoveL HomeL_travel,spd_fast,zone_path,tool0\WObj:=wobj0;
         MoveL pick_approach,spd_fast,zone_path,tool0\WObj:=wobj0;
         MoveL pick_point,spd_pick,fine,tool0\WObj:=wobj0;
-        g_GripIn;
+        g_JogIn;
         WaitTime wait_grip_in;
         MoveL pick_approach,spd_pick,zone_path,tool0\WObj:=wobj0;
         MoveL stack_approach,spd_fast,zone_path,tool0\WObj:=wobj0;
         MoveL target_level,spd_stack,fine,tool0\WObj:=wobj0;
-        g_GripOut;
+        g_JogOut;
         WaitTime wait_grip_out;
         MoveL stack_approach,spd_pick,zone_path,tool0\WObj:=wobj0;
         MoveL HomeL_travel,spd_fast,zone_path,tool0\WObj:=wobj0;
@@ -209,12 +209,12 @@ MODULE Module1
         MoveL HomeL_travel,spd_fast,zone_path,tool0\WObj:=wobj0;
         MoveL stack_approach,spd_fast,zone_path,tool0\WObj:=wobj0;
         MoveL target_level,spd_stack,fine,tool0\WObj:=wobj0;
-        g_GripIn;
+        g_JogIn;
         WaitTime wait_grip_in;
         MoveL stack_approach,spd_pick,zone_path,tool0\WObj:=wobj0;
         MoveL place_approach,spd_fast,zone_path,tool0\WObj:=wobj0;
         MoveL place_point,spd_stack,fine,tool0\WObj:=wobj0;
-        g_GripOut;
+        g_JogOut;
         WaitTime wait_grip_out;
         MoveL place_approach,spd_pick,zone_path,tool0\WObj:=wobj0;
         MoveL HomeL_travel,spd_fast,zone_path,tool0\WObj:=wobj0;
@@ -226,12 +226,12 @@ MODULE Module1
         MoveL HomeL_travel,spd_fast,zone_path,tool0\WObj:=wobj0;
         MoveL from_approach,spd_fast,zone_path,tool0\WObj:=wobj0;
         MoveL from_point,spd_pick,fine,tool0\WObj:=wobj0;
-        g_GripIn;
+        g_JogIn;
         WaitTime wait_grip_in;
         MoveL from_approach,spd_pick,zone_path,tool0\WObj:=wobj0;
         MoveL to_approach,spd_fast,zone_path,tool0\WObj:=wobj0;
         MoveL to_point,spd_pick,fine,tool0\WObj:=wobj0;
-        g_GripOut;
+        g_JogOut;
         WaitTime wait_grip_out;
         MoveL to_approach,spd_pick,zone_path,tool0\WObj:=wobj0;
         MoveL HomeL_travel,spd_fast,zone_path,tool0\WObj:=wobj0;
