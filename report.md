@@ -172,9 +172,12 @@ Defines the time-evolution, or speed along the path from A to B
 The notions of path and trajectory can also be generalized to motion in the configuration space or joint space of a robot."
 \end{quote}
 
-TODO: write in depth, add that we have built in seteling time and change speed of motion comperd to is its a move or interaction
+In our implementation, we used these concepts directly:
+- The pick-and-place sequence is defined as a trajectory set by ordered targets in the workcell.
+- We adjusted feed rates and motion types (MoveJ versus MoveL) to enforce time evolution and velocity profiles depending on task requirement.
+- For straight-line interactions (approach, grasp, place) we selected slower translation speeds and finer motion segments to improve accuracy.
 
-
+In addition, we included explicit settling handling in our code by inserting short waits and fine stops after critical pick/place moves. This reduces residual oscillations caused by tool load or gripper contact and ensures that the next motion starts from a stable pose.
 
 "Kinematics: A branch of mechanics that studies the motion of a body, or system of bodies. Concerned with positions (and angles) and velocities (translational and angular). Not concerned with mass, forces or moments (that’s Dynamics, Ch. 9)"
 \end{quote}
