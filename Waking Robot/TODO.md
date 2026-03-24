@@ -1,19 +1,24 @@
 # TEL200 Walking Robot Project — Comprehensive TODO List
 
+- [Navn] Gjør en oppgave
+- [X] Ferdig med en oppgave
+- [Alle,Navn] om alle burde gjøre det, navn på de som gjør det
+- [Alle,NavnX] ferdig med det "når alle er ferdig blir det til [X]"
+
 ## 0. Project Setup & Planning
 
 * [ ] Form group and assign roles
-* [ ] Create shared workspace (Git repo / folder structure)
-* [ ] Set up Python environment with required libraries
-* [ ] Download and inspect provided files:
+* [Gabriel] Create shared workspace (Git repo / folder structure)
+* [Gabriel] Set up Python environment with required libraries
+* [Gabriel] Download and inspect provided files:
 
   * walkingTEL200.py
-  * house.mat
+  * house.mat 
   * killian.g2o.zip
-* [ ] Read relevant course material:
+* [All] Read relevant course material:
 
   * Chapter 3–7 (focus on 5, 6, 7)
-* [ ] Create project timeline (Gantt chart):
+* [ALL] Create project timeline (Gantt chart):
 
   * Task distribution
   * Meeting schedule
@@ -25,8 +30,8 @@
 
 ### 1.1 Understand Existing Code
 
-* [ ] Run walkingTEL200.py
-* [ ] Understand:
+* [Gabriel] Run walkingTEL200.py
+* [Alle,Gabriel] Understand:
 
   * Leg movement cycles (qcycle)
   * Base coordinate system (robot-centered)
