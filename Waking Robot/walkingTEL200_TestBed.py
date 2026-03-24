@@ -71,81 +71,64 @@ print(' done')
 
 qcycle = sol.q
 
-# --- Enforce knee z > foot z ---
-for i, q in enumerate(qcycle):
-    Tlist = leg.fkine_all(q)
-    knee_z = Tlist[2].t[2]
-    foot_z = Tlist[3].t[2]
-    if knee_z <= foot_z:
-        # Try flipping the sign of the second joint (knee)
-        q_flipped = q.copy()
-        q_flipped[1] = -q_flipped[1]
-        Tlist_flipped = leg.fkine_all(q_flipped)
-        knee_z_flipped = Tlist_flipped[2].t[2]
-        foot_z_flipped = Tlist_flipped[3].t[2]
-        if knee_z_flipped > foot_z_flipped:
-            qcycle[i] = q_flipped
 print(xcycle.shape)
 
-
-# --- Write joint coordinates to CSV ---
-import csv
-joint_csv_path = 'joint_positions.csv'
-with open(joint_csv_path, 'w', newline='') as csvfile:
-    writer = csv.writer(csvfile)
-    # Write header
-    header = ['step']
-    for j in range(leg.n):
-        for axis in ['x', 'y', 'z']:
-            header.append(f'joint{j}_{axis}')
-    writer.writerow(header)
-    # For each step, compute and write joint positions
-    for i, q in enumerate(qcycle):
-        row = [i]
-        Tlist = leg.fkine_all(q)  # list of SE3 for each joint
-        for T in Tlist:
-            pos = T.t
-            row.extend([pos[0], pos[1], pos[2]])
-        writer.writerow(row)
-print(f'Joint positions written to {joint_csv_path}')
-
-# Restore body and 4 legs simulation
+# dimensions of the robot's rectangular body, width and height, the legs
+# are at each corner.
 W = 100 * mm; L = 200 * mm
+
+# create 4 leg robots.  Each is a clone of the leg robot we built above,
+# has a unique name, and a base transform to represent it's position
+# on the body of the walking robot.
 legs = [
     ERobot(leg, name='leg0'),
     ERobot(leg, name='leg1'),
     ERobot(leg, name='leg2'),
     ERobot(leg, name='leg3')
 ]
+
 from roboticstoolbox.backends.PyPlot import PyPlot
+
 env = PyPlot()
 env.launch(limits=[-L, L, -W, W, -0.15, 0.05])
+
 leg_adjustment = SE3.Rz(pi)
 legs[0].base = SE3(L / 2,  -W / 2, 0) 
 legs[1].base = SE3( -L / 2,  -W / 2, 0) 
 legs[2].base = SE3(L / 2, W / 2, 0) * leg_adjustment
 legs[3].base = SE3( -L / 2, W / 2, 0) * leg_adjustment
-for legi in legs:
-    legi.q = np.r_[0, 0, 0]
-    env.add(legi, readonly=True, jointaxes=False, eeframe=False, shadow=False)
+
+# instantiate each robot in the backend environment
+for leg in legs:
+    leg.q = np.r_[0, 0, 0]
+    env.add(leg, readonly=True, jointaxes=False, eeframe=False, shadow=False)
+
 body = Cuboid([L, W, 30 * mm], color='b')
 body.base = SE3(0, 0, 0)  
 env.add(body)
+
 env.step()
+
 def gait(cycle, k, offset, flip):
     k = (k + offset) % cycle.shape[0]
     q = cycle[k, :].copy()
     if flip:
         q[0] = -q[0]   # for left-side legs
     return q
+
 env.step()
+
+# walk!
+
 for i in range(4000):
     if not plt.fignum_exists(env.fig.number):
         break
+
     legs[0].q = gait(qcycle, i, 0, False)
     legs[1].q = gait(qcycle, i, 100, False)
     legs[2].q = gait(qcycle, i, 200, True)
     legs[3].q = gait(qcycle, i, 300, True)
     env.step(dt=0.02)
+
 env.hold()
 plt.close('all')
