@@ -9,20 +9,16 @@
 
 * [ ] Form group and assign roles
 * [x] Create shared workspace (Git repo / folder structure)
-* [Gabriel] Set up Python environment with required libraries
-* [Gabriel] Download and inspect provided files:
+* [x] Set up Python environment with required libraries
+* [x] Download and inspect provided files:
 
   * walkingTEL200.py
   * house.mat 
   * killian.g2o.zip
-* [All] Read relevant course material:
+* [x] Read relevant course material:
 
   * Chapter 3–7 (focus on 5, 6, 7)
-* [ALL] Create project timeline (Gantt chart):
 
-  * Task distribution
-  * Meeting schedule
-  * Final week reserved for report
 
 ---
 
@@ -30,8 +26,8 @@
 
 ### 1.1 Understand Existing Code
 
-* [Gabriel] Run walkingTEL200.py
-* [Alle,Gabriel] Understand:
+* [x] Run walkingTEL200.py
+* [x] Understand:
 
   * Leg movement cycles (qcycle)
   * Base coordinate system (robot-centered)
