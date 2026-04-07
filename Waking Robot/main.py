@@ -85,7 +85,7 @@ def start_robot():
     env.add(body)
     env.step()
       
-def stop_robot():
+def stopRobot():
     """Stops the robot simulation and closes all plots."""
     print("Stopping robot simulation...")
     plt.close('all')
@@ -111,7 +111,7 @@ def turn(angle, speed):
         env.step(dt=dt)
 
     
-def go_forward(distance, speed):
+def goForward(distance, speed):
     """
     Moves the robot body forward by the given distance (meters) at the given speed (m/s).
     """
@@ -130,7 +130,7 @@ def go_forward(distance, speed):
         animate(i)
         env.step(dt=dt)
 
-def hold_position(duration):
+def holdPosition(duration):
     """
     Holds the robot's current position for a given duration (seconds).
     """
@@ -153,11 +153,11 @@ def main():
     Main simulation loop.
     """
     start_robot()
-    go_forward(0.5, 0.1)  # Move forward 0.5 meters at 0.1 m/s
+    goForward(0.5, 0.1)  # Move forward 0.5 meters at 0.1 m/s
     turn(pi/4, 0.1)       # Turn 45 degrees at 0.1 rad/s
-    go_forward(0.5, 0.1)  # Move forward another 0.5 meters at 0.1 m/s
-    hold_position(2)      # Hold position for 2 seconds
-    stop_robot()
+    goForward(0.5, 0.1)  # Move forward another 0.5 meters at 0.1 m/s
+    holdPosition(2)      # Hold position for 2 seconds
+    stopRobot()
 #=======================================
 
 
