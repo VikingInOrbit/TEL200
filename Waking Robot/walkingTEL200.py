@@ -16,7 +16,7 @@ L2 = 100 * mm
 print('create leg model\n')
 
 # now create a robot to represent a single leg
-leg = ERobot(ET.Rz() * ET.Rx() * ET.ty(L1) * ET.Rx() * ET.tz(-L2))
+leg = ERobot(ET.Rz() * ET.Rx() * ET.ty(-L1) * ET.Rx() * ET.tz(-L2))
 print(leg)
 
 # leg.plot([0,0,0], block=True, eeframe=False, jointaxes=False, backend='pyplot', shadow=False)
@@ -97,6 +97,7 @@ legs[0].base = SE3(L / 2,  -W / 2, 0)
 legs[1].base = SE3( -L / 2,  -W / 2, 0) 
 legs[2].base = SE3(L / 2, W / 2, 0) * leg_adjustment
 legs[3].base = SE3( -L / 2, W / 2, 0) * leg_adjustment
+
 
 # instantiate each robot in the backend environment
 for leg in legs:
