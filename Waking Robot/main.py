@@ -10,9 +10,33 @@ from roboticstoolbox.backends.PyPlot import PyPlot
 mm = 0.001   
 L1 = 100 * mm
 L2 = 100 * mm
-
 W = 100 * mm; L = 200 * mm
 
+house = rtb_load_matfile("data/house.mat")
+
+floorplan = house["floorplan"]
+places = house["places"]
+
+prm = PRMPlanner(occgrid=floorplan, seed=0)
+
+prm.plan(300)
+path = prm.query(start=places.br1, goal=places.br2)
+
+print
+def followPath(path):
+    for i in range(1, len(path)):
+        x1, y1 = path[i-1]
+        x2, y2 = path[i]
+        dot = x1 * x2 + y1 * y2
+        len1 = np.sqrt(x1**2 + y1**2)
+        len2 = np.sqrt(x2**2 + y2**2)
+        newAngle = dot / (len1 * len2)
+        newAngle = np.arccos()
+        print(newAngle)
+
+followPath(path)
+
+"""
 leg = ERobot(ET.Rz() * ET.Rx() * ET.ty(-L1) * ET.Rx() * ET.tz(-L2))
 
 legs = [
@@ -48,8 +72,8 @@ env = PyPlot()
 env.launch(limits=[-L, L, -W, W, -0.15, 0.05])
 
 leg_adjustment = SE3.Rz(pi)
-legs[0].base = SE3(L / 2,  -W / 2, 0) 
-legs[1].base = SE3( -L / 2,  -W / 2, 0) 
+legs[0].base = SE3(L / 2,  -W / 2, 0)
+legs[1].base = SE3( -L / 2,  -W / 2, 0)
 legs[2].base = SE3(L / 2, W / 2, 0) * leg_adjustment
 legs[3].base = SE3( -L / 2, W / 2, 0) * leg_adjustment
 
@@ -73,7 +97,6 @@ def gait(cycle, k, offset, flip):
 
 env.step()
 
-# walk!
 
 for i in range(4000):
     if not plt.fignum_exists(env.fig.number):
@@ -82,8 +105,14 @@ for i in range(4000):
     legs[0].q = gait(qcycle, i, 0, False)
     legs[1].q = gait(qcycle, i, 100, False)
     legs[2].q = gait(qcycle, i, 200, True)
-    legs[3].q = gait(qcycle, i, 300, True)
+    legs[3].q = gait(qcycle, i, 300, True)  
+
     env.step(dt=0.02)
 
+
 env.hold()
+
+
+
 plt.close('all')
+"""
