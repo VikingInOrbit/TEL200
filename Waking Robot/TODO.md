@@ -8,7 +8,7 @@
 ## 0. Project Setup & Planning
 
 * [ ] Form group and assign roles
-* [Gabriel] Create shared workspace (Git repo / folder structure)
+* [x] Create shared workspace (Git repo / folder structure)
 * [Gabriel] Set up Python environment with required libraries
 * [Gabriel] Download and inspect provided files:
 
