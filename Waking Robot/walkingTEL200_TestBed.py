@@ -1,134 +1,175 @@
-from roboticstoolbox import *
-import pickle
+from roboticstoolbox import ERobot, ET, mstraj
 import numpy as np
 import matplotlib.pyplot as plt
 from spatialmath import SE3
 from spatialgeometry import Cuboid
 from math import pi
-
-# Copyright (C) 1993-2021, by Peter I. Corke
-
-
-mm = 0.001   
-L1 = 100 * mm
-L2 = 100 * mm
-
-print('create leg model\n')
-
-# now create a robot to represent a single leg
-leg = ERobot(ET.Rz() * ET.Rx() * ET.ty(L1) * ET.Rx() * ET.tz(-L2))
-print(leg)
-
-# leg.plot([0,0,0], block=True, eeframe=False, jointaxes=False, backend='pyplot', shadow=False)
-
-# define the key parameters of the gait trajectory, walking in the
-# x-direction
-xf = 50; xb = -xf;   # forward and backward limits for foot on ground
-y = -50;              # distance of foot from body along y-axis
-zu = -20; zd = -50;     # height of foot when up and down
-# define the rectangular path taken by the foot
-segments = np.array([
-    [xf, y, zd],
-    [xb, y, zd],
-    [xb, y, zu],
-    [xf, y, zu],
-    [xf, y, zd]
-     ]) * mm
-
-# build the gait. the points are:
-#   1 start of walking stroke
-#   2 end of walking stroke
-#   3 end of foot raise
-#   4 foot raised and forward
-#
-# The segments times are :
-#   1->2  3s
-#   2->3  0.5s
-#   3->4  1s
-#   4->1  0.5ss
-#
-# A total of 4s, of which 3s is walking and 1s is reset.  At 0.01s sample
-# time this is exactly 400 steps long.
-#
-# We use a finite acceleration time to get a nice smooth path, which means
-# that the foot never actually goes through any of these points.  This
-# makes setting the initial robot pose and velocity difficult.
-#
-# Intead we create a longer cyclic path: 1, 2, 3, 4, 1, 2, 3, 4. The
-# first 1->2 segment includes the initial ramp up, and the final 3->4
-# has the slow down.  However the middle 2->3->4->1 is smooth cyclic
-# motion so we "cut it out" and use it.
-print('create trajectory\n')
-
-x = mstraj(segments, tsegment=[3, 0.25, 0.5, 0.25], dt=0.01, tacc=0.07)
-
-print('inverse kinematics (this will take a moment)....', end='')
-xcycle = x.q
-xcycle = np.vstack((xcycle, xcycle[-3:,:]))
-
-sol = leg.ikine_LM( SE3(xcycle), mask=[1, 1, 1, 0, 0, 0] )
-print(' done')
-
-qcycle = sol.q
-
-print(xcycle.shape)
-
-# dimensions of the robot's rectangular body, width and height, the legs
-# are at each corner.
-W = 100 * mm; L = 200 * mm
-
-# create 4 leg robots.  Each is a clone of the leg robot we built above,
-# has a unique name, and a base transform to represent it's position
-# on the body of the walking robot.
-legs = [
-    ERobot(leg, name='leg0'),
-    ERobot(leg, name='leg1'),
-    ERobot(leg, name='leg2'),
-    ERobot(leg, name='leg3')
-]
-
 from roboticstoolbox.backends.PyPlot import PyPlot
+import scipy.io
+def load_map():
+    """
+    Loads the map from KillianMap.mat and adds it to the environment.
+    You can expand this function to visualize the map as needed.
+    """
+    try:
+        mat = scipy.io.loadmat('../KillianMap.mat')
+        print("Map keys:", mat.keys())
+        # Try to display a 2D map if present
+        mapdata = None
+        for key in mat:
+            if isinstance(mat[key], np.ndarray) and mat[key].ndim == 2:
+                mapdata = mat[key]
+                print(f"Displaying map from key: {key}, shape: {mapdata.shape}")
+                break
+        if mapdata is not None:
+            plt.figure("Map Display")
+            plt.imshow(mapdata, cmap='gray')
+            plt.title(f"Map: {key}")
+            plt.colorbar()
+            plt.show(block=False)
+        else:
+            print("No 2D map array found in KillianMap.mat.")
+    except Exception as e:
+        print(f"Could not load map: {e}")
 
-env = PyPlot()
-env.launch(limits=[-L, L, -W, W, -0.15, 0.05])
 
-leg_adjustment = SE3.Rz(pi)
-legs[0].base = SE3(L / 2,  -W / 2, 0) 
-legs[1].base = SE3( -L / 2,  -W / 2, 0) 
-legs[2].base = SE3(L / 2, W / 2, 0) * leg_adjustment
-legs[3].base = SE3( -L / 2, W / 2, 0) * leg_adjustment
+def start_robot():
+    """
+    Initializes the robot, environment, and loads the map.
+    """
+    load_map()
+    global mm, L1, L2, W, L, leg, legs, xf, xb, y, zu, zd, segments, x, xcycle, sol, qcycle
+    global env, leg_adjustment, body
+    print("Starting robot simulation...")
+    mm = 0.001   
+    L1 = 100 * mm
+    L2 = 100 * mm
+    W = 100 * mm
+    L = 200 * mm
 
-# instantiate each robot in the backend environment
-for leg in legs:
-    leg.q = np.r_[0, 0, 0]
-    env.add(leg, readonly=True, jointaxes=False, eeframe=False, shadow=False)
+    leg = ERobot(ET.Rz() * ET.Rx() * ET.ty(-L1) * ET.Rx() * ET.tz(-L2))
+    legs = [ERobot(leg, name=f'leg{i}') for i in range(4)]
 
-body = Cuboid([L, W, 30 * mm], color='b')
-body.base = SE3(0, 0, 0)  
-env.add(body)
+    xf = 50; xb = -xf
+    y = -50
+    zu = -20; zd = -50
+    segments = np.array([
+        [xf, y, zd],
+        [xb, y, zd],
+        [xb, y, zu],
+        [xf, y, zu],
+        [xf, y, zd]
+    ]) * mm
 
-env.step()
+    x = mstraj(segments, tsegment=[3, 0.25, 0.5, 0.25], dt=0.01, tacc=0.07)
+    xcycle = x.q
+    xcycle = np.vstack((xcycle, xcycle[-3:,:]))
+    sol = leg.ikine_LM(SE3(xcycle), mask=[1, 1, 1, 0, 0, 0])
+    qcycle = sol.q
+
+    env = PyPlot()
+    env.launch(limits=[-L, L, -W, W, -0.15, 0.05])
+
+    leg_adjustment = SE3.Rz(pi)
+    legs[0].base = SE3(L / 2,  -W / 2, 0)
+    legs[1].base = SE3(-L / 2,  -W / 2, 0)
+    legs[2].base = SE3(L / 2, W / 2, 0) * leg_adjustment
+    legs[3].base = SE3(-L / 2, W / 2, 0) * leg_adjustment
+
+    for leg in legs:
+        leg.q = np.r_[0, 0, 0]
+        env.add(leg, readonly=True, jointaxes=False, eeframe=False, shadow=False)
+
+    body = Cuboid([L, W, 30 * mm], color='b')
+    body.base = SE3(0, 0, 0)
+    env.add(body)
+    env.step()
+      
+def stopRobot():
+    """Stops the robot simulation and closes all plots."""
+    print("Stopping robot simulation...")
+    plt.close('all')
+
+
+def turn(angle, speed):
+    """
+    Rotates the robot body in place by the given angle (radians) at the given speed (rad/s).
+    """
+    total_time = abs(angle) / speed
+    dt = 0.02
+    steps = int(total_time / dt)
+    start_theta = body.base.rpy()[2]
+    end_theta = start_theta + angle
+    theta_positions = np.linspace(start_theta, end_theta, steps)
+    for i in range(steps):
+        body.base = SE3.Rz(theta_positions[i]) * SE3(body.base.t)
+        legs[0].base = body.base * SE3(L / 2,  -W / 2, 0)
+        legs[1].base = body.base * SE3( -L / 2,  -W / 2, 0)
+        legs[2].base = body.base * SE3(L / 2, W / 2, 0) * leg_adjustment
+        legs[3].base = body.base * SE3( -L / 2, W / 2, 0) * leg_adjustment
+        animate(i)
+        env.step(dt=dt)
+
+    
+def goForward(distance, speed):
+    """
+    Moves the robot body forward by the given distance (meters) at the given speed (m/s).
+    """
+    total_time = distance / speed
+    dt = 0.02
+    steps = int(total_time / dt)
+    start_x = body.base.t[0]
+    end_x = start_x + distance
+    x_positions = np.linspace(start_x, end_x, steps)
+    for i in range(steps):
+        body.base = SE3(x_positions[i], 0, 0)
+        legs[0].base = body.base * SE3(L / 2,  -W / 2, 0)
+        legs[1].base = body.base * SE3( -L / 2,  -W / 2, 0)
+        legs[2].base = body.base * SE3(L / 2, W / 2, 0) * leg_adjustment
+        legs[3].base = body.base * SE3( -L / 2, W / 2, 0) * leg_adjustment
+        animate(i)
+        env.step(dt=dt)
+
+def holdPosition(duration):
+    """
+    Holds the robot's current position for a given duration (seconds).
+    """
+    dt = 0.02
+    steps = int(duration / dt)
+    for i in range(steps):
+        env.step(dt=dt)
+
+def animate(i):
+    """
+    Animates the robot's legs for a given step index.
+    """
+    legs[0].q = gait(qcycle, i, 0, False)
+    legs[1].q = gait(qcycle, i, 100, False)
+    legs[2].q = gait(qcycle, i, 200, True)
+    legs[3].q = gait(qcycle, i, 300, True)
+
+def main():
+    """
+    Main simulation loop.
+    """
+    start_robot()
+    goForward(0.5, 0.1)  # Move forward 0.5 meters at 0.1 m/s
+    turn(pi/4, 0.1)       # Turn 45 degrees at 0.1 rad/s
+    goForward(0.5, 0.1)  # Move forward another 0.5 meters at 0.1 m/s
+    holdPosition(2)      # Hold position for 2 seconds
+    stopRobot()
+#=======================================
+
 
 def gait(cycle, k, offset, flip):
+    """
+    Returns the joint angles for a given gait cycle step.
+    """
     k = (k + offset) % cycle.shape[0]
     q = cycle[k, :].copy()
     if flip:
         q[0] = -q[0]   # for left-side legs
     return q
 
-env.step()
-
-# walk!
-
-for i in range(4000):
-    if not plt.fignum_exists(env.fig.number):
-        break
-
-    legs[0].q = gait(qcycle, i, 0, False)
-    legs[1].q = gait(qcycle, i, 100, False)
-    legs[2].q = gait(qcycle, i, 200, True)
-    legs[3].q = gait(qcycle, i, 300, True)
-    env.step(dt=0.02)
-
-env.hold()
-plt.close('all')
+if __name__ == "__main__":
+    main()
