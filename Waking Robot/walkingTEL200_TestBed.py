@@ -924,16 +924,16 @@ def main_part3():
         primitives,
         sequence,
         render=RENDER,
-        prefix="part3_draw_G_45_corner",
+        prefix="part3_draw",
     )
 
     save_trajectory_plot(
         traj,
         target,
-        "part3_draw_G_45_corner",
-        output_dir / "part3_draw_G_45_corner.png",
+        "part3_draw",
+        output_dir / "part3_draw.png",
     )
-    log_test_summary("part3_draw_G_45_corner", pose, target)
+    log_test_summary("part3_draw", pose, target)
 
     if RENDER:
         stop_robot_environment()
