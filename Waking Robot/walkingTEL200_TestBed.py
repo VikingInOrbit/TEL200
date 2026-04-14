@@ -780,7 +780,7 @@ def run_part1_required_tests(base_dir, render=False, hold_window=False):
         LOGGER.info("%s: min_support_legs=%d", name, primitive["min_support_legs"])
 
 
-def main():
+def main_part1():
     """Run Part 1 tests using constants defined at the top of this file."""
     setup_logging(DEBUG_MODE)
     LOGGER.info(
@@ -802,5 +802,28 @@ def main():
     run_part1_required_tests(base_dir=base_dir, render=render, hold_window=hold_window)
 
 
+def main_part2():
+    base_dir = Path(__file__).resolve().parent
+    output_dir = base_dir / "output"
+    primitives_dir = base_dir / "primitives"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+
+    start_robot_environment(initial_pose=np.array([0.0, 0.0, 0.0]))
+    primitives = create_motion_primitives(primitives_dir)
+    
+    repeats = 5
+    pose = np.array([0.0, 0.0, 0.0], dtype=float)
+
+    execute_primitive(
+            pose,
+            primitives["forward_10cm"],
+            repeats=repeats,
+            render=True,
+            primitive_name=f"forward_10cm",
+            show_progress=SHOW_PROGRESS,
+    )
+
 if __name__ == "__main__":
-    main()
+    #main_part1()
+    main_part2()
