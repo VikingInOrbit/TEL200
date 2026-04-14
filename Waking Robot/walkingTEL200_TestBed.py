@@ -817,7 +817,7 @@ def followPath(path):
         for _ in range(int(lenv2)):
             pass #Activate function for walking forward 10cm
 
-def main():
+def main_part1():
     """Run Part 1 tests using constants defined at the top of this file."""
     setup_logging(DEBUG_MODE)
     LOGGER.info(
@@ -840,5 +840,36 @@ def main():
     followPath(path)
 
 
+def main_part2():
+    base_dir = Path(__file__).resolve().parent
+    output_dir = base_dir / "output"
+    primitives_dir = base_dir / "primitives"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    pose = np.array([0.0, 0.0, 0.0], dtype=float)
+
+    start_robot_environment(initial_pose=pose)
+    primitives = create_motion_primitives(primitives_dir)
+    
+    repeats = 5
+    pose = np.array([0.0, 0.0, 0.0], dtype=float)
+
+    # primitive_name ["forward_10cm", "turn_1deg_ccw", "turn_1deg_cw"]:
+
+    while True:
+        for primitive_name in ["forward_10cm", "turn_1deg_ccw", "turn_1deg_cw"]:
+        
+            execute_primitive(
+                pose,
+                primitives[primitive_name],
+                repeats=repeats,
+                render=True,
+                primitive_name=f"{primitive_name}_{repeats}x",
+                show_progress=SHOW_PROGRESS,
+            )
+
+
+
 if __name__ == "__main__":
-    main()
+    #main_part1()
+    main_part2()
