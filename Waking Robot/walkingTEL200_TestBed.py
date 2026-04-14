@@ -194,6 +194,9 @@ def build_gait_cycle(leg):
 
     return qcycle, xcycle, zu * MM, zd * MM
 
+#=============================================================
+# utils
+#=============================================================
 
 def start_robot_environment(initial_pose):
     """Create and launch the interactive robot scene."""
@@ -312,6 +315,7 @@ def create_motion_primitives(primitives_dir):
 
     Files generated:
     - forward_10cm.npz
+    - backward_10cm.npz
     - turn_1deg_ccw.npz
     - turn_1deg_cw.npz
     """
@@ -341,12 +345,19 @@ def create_motion_primitives(primitives_dir):
     turn_step_cw = np.array(
         [0.0, 0.0, -np.deg2rad(TURN_ANGLE_DEG) / primitive_steps], dtype=float
     )
+    backward_step = np.array([-FORWARD_DISTANCE_M / primitive_steps, 0.0, 0.0], dtype=float)
 
     np.savez(
         primitives_dir / "forward_10cm.npz",
         joint_sequence=joint_sequence,
         body_local_step=forward_step,
         primitive_name="forward_10cm",
+    )
+    np.savez(
+        primitives_dir / "backward_10cm.npz",
+        joint_sequence=joint_sequence,
+        body_local_step=backward_step,
+        primitive_name="backward_10cm",
     )
     np.savez(
         primitives_dir / "turn_1deg_ccw.npz",
@@ -384,6 +395,12 @@ def create_motion_primitives(primitives_dir):
         "turn_1deg_cw": {
             "joint_sequence": joint_sequence,
             "body_local_step": turn_step_cw,
+            "steps": primitive_steps,
+            "min_support_legs": min_support,
+        },
+        "backward_10cm": {
+            "joint_sequence": joint_sequence,
+            "body_local_step": backward_step,
             "steps": primitive_steps,
             "min_support_legs": min_support,
         },
@@ -779,17 +796,19 @@ def run_part1_required_tests(base_dir, render=False, hold_window=False):
     for name, primitive in primitives.items():
         LOGGER.info("%s: min_support_legs=%d", name, primitive["min_support_legs"])
 
-house = rtb_load_matfile("data/house.mat")
 
-floorplan = house["floorplan"]
-places = house["places"]
-
-prm = PRMPlanner(occgrid=floorplan, seed=0)
-
-prm.plan(300)
-path = prm.query(start=places.br1, goal=places.br2)
-
-
+def PRMPlanner_use():
+    house = rtb_load_matfile("data/house.mat")
+    
+    floorplan = house["floorplan"]
+    places = house["places"]
+    
+    prm = PRMPlanner(occgrid=floorplan, seed=0)
+    
+    prm.plan(300)
+    path = prm.query(start=places.br1, goal=places.br2)
+    
+    
 def followPath(path):
     for i in range(2, len(path)):
         x1, y1 = path[i-2]
@@ -838,6 +857,7 @@ def main_part1():
     hold_window = render and HOLD_WINDOW
     run_part1_required_tests(base_dir=base_dir, render=render, hold_window=hold_window)
     followPath(path)
+    stop_robot_environment()
 
 
 def main_part2():
@@ -856,20 +876,61 @@ def main_part2():
 
     # primitive_name ["forward_10cm", "turn_1deg_ccw", "turn_1deg_cw"]:
 
-    while True:
-        for primitive_name in ["forward_10cm", "turn_1deg_ccw", "turn_1deg_cw"]:
+
+    for primitive_name in ["forward_10cm", "turn_1deg_ccw", "turn_1deg_cw"]:
+
+        execute_primitive(
+            pose,
+            primitives[primitive_name],
+            repeats=repeats,
+            render=True,
+            primitive_name=f"{primitive_name}_{repeats}x",
+            show_progress=SHOW_PROGRESS,
+            )
+    stop_robot_environment()
+
+def main_part3():
+        base_dir = Path(__file__).resolve().parent
+        output_dir = base_dir / "output"
+        primitives_dir = base_dir / "primitives"
+        output_dir.mkdir(parents=True, exist_ok=True)
+    
+        pose = np.array([0.0, 0.0, 0.0], dtype=float)
+    
+        start_robot_environment(initial_pose=pose)
+        primitives = create_motion_primitives(primitives_dir)
         
-            execute_primitive(
-                pose,
-                primitives[primitive_name],
-                repeats=repeats,
-                render=True,
-                primitive_name=f"{primitive_name}_{repeats}x",
-                show_progress=SHOW_PROGRESS,
+        repeats = 5
+        pose = np.array([0.0, 0.0, 0.0], dtype=float)
+    
+        # primitive_name ["forward_10cm", "turn_1deg_ccw", "turn_1deg_cw"]:
+
+        sequence = [("forward_10cm", 4), ("turn_1deg_cw", 10), ("forward_10cm", 4), ("turn_1deg_ccw", 10), ("forward_10cm", 4), ("turn_1deg_cw", 10), ("forward_10cm", 4)]
+
+        execute_sequence(
+            pose,
+            primitives,
+            sequence,
+            render=True,
+            prefix="part3_sequence",
             )
 
 
+    
+        while True:
+            for primitive_name in ["forward_10cm", "turn_1deg_ccw", "backward_10cm", "turn_1deg_cw"]:
+            
+                execute_primitive(
+                    pose,
+                    primitives[primitive_name],
+                    repeats=repeats,
+                    render=True,
+                    primitive_name=f"{primitive_name}_{repeats}x",
+                    show_progress=SHOW_PROGRESS,
+                    )
+        stop_robot_environment()
 
 if __name__ == "__main__":
     #main_part1()
-    main_part2()
+    #main_part2()
+    main_part3()
