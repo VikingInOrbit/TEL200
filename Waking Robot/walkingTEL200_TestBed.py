@@ -788,16 +788,35 @@ prm = PRMPlanner(occgrid=floorplan, seed=0)
 
 prm.plan(300)
 path = prm.query(start=places.br1, goal=places.br2)
+prm.plot(path)
+plt.show()
 
+def followPath(path, startpose):
 
-def followPath(path):
+    # pose = np.array([0.0, 0.0, 0.0], dtype=float)
+
     for i in range(2, len(path)):
+
         x1, y1 = path[i-2]
         x2, y2 = path[i-1]
         x3, y3 = path[i]
 
-        v1 = [x2 - x1, y2 - y1]
-        v2 = [x3 - x2, y3 - y2]
+        v1 = np.array([x3 - x2, y3 - y2])
+        v2 = np.array([x2 - x1, y2 - y1])
+
+        anglerad = np.arctan2(v1[0]*v2[1] - v1[1]*v2[0],np.dot(v1, v2))
+        angle = np.rad2deg(anglerad)
+        print(angle)
+
+    return None
+followPath(path, 0)
+
+def followPathFalse(path):
+
+
+
+
+    for i in range(2, len(path)):
 
         lenv1 = np.sqrt(v1[0]**2 + v1[1]**2)
         lenv2 = np.sqrt(v2[0]**2 + v2[1]**2)
