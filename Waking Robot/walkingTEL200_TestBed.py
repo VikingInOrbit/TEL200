@@ -808,21 +808,29 @@ def main_part2():
     primitives_dir = base_dir / "primitives"
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    pose = np.array([0.0, 0.0, 0.0], dtype=float)
 
-    start_robot_environment(initial_pose=np.array([0.0, 0.0, 0.0]))
+    start_robot_environment(initial_pose=pose)
     primitives = create_motion_primitives(primitives_dir)
     
     repeats = 5
     pose = np.array([0.0, 0.0, 0.0], dtype=float)
 
-    execute_primitive(
-            pose,
-            primitives["forward_10cm"],
-            repeats=repeats,
-            render=True,
-            primitive_name=f"forward_10cm",
-            show_progress=SHOW_PROGRESS,
-    )
+    # primitive_name ["forward_10cm", "turn_1deg_ccw", "turn_1deg_cw"]:
+
+    while True:
+        for primitive_name in ["forward_10cm", "turn_1deg_ccw", "turn_1deg_cw"]:
+        
+            execute_primitive(
+                pose,
+                primitives[primitive_name],
+                repeats=repeats,
+                render=True,
+                primitive_name=f"{primitive_name}_{repeats}x",
+                show_progress=SHOW_PROGRESS,
+            )
+
+
 
 if __name__ == "__main__":
     #main_part1()
