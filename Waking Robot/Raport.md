@@ -23,3 +23,8 @@ men de går 1-2-3-4-1-2-3-4 fordi et acc problem? må lese mer om dette
 ## Base coordinate system
 
 ## Why robot is stationary in world frame
+
+## Spørsmål til hjelpelærer
+- [ ] Må roboten bevege seg 10cm av gangen?
+- [ ] Kan vi dele opp punktene fra prm i flere punkter?
+- [ ] Kan roboten skjekke hvor den er underveis?
