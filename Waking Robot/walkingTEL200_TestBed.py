@@ -69,7 +69,7 @@ REALTIME_LAG_TOL_S = 0.05
 
 SHOW_PROGRESS = False
 SIM_DETAIL = 1.0         # 0-1: 1 renders all frames, 0.5 renders ~half.
-SIM_SPEED = 1.0          # viewer playback multiplier
+SIM_SPEED = 5.0          # viewer playback multiplier
 
 #=============================================================
 # Logger
@@ -799,16 +799,16 @@ def run_part1_required_tests(base_dir, render=False, hold_window=False):
 
 def PRMPlanner_use():
     house = rtb_load_matfile("data/house.mat")
-    
+
     floorplan = house["floorplan"]
     places = house["places"]
-    
+
     prm = PRMPlanner(occgrid=floorplan, seed=0)
-    
+
     prm.plan(300)
     path = prm.query(start=places.br1, goal=places.br2)
-    
-    
+
+
 def followPath(path):
     for i in range(2, len(path)):
         x1, y1 = path[i-2]
@@ -890,44 +890,52 @@ def main_part2():
     stop_robot_environment()
 
 def main_part3():
-        base_dir = Path(__file__).resolve().parent
-        output_dir = base_dir / "output"
-        primitives_dir = base_dir / "primitives"
-        output_dir.mkdir(parents=True, exist_ok=True)
-    
-        pose = np.array([0.0, 0.0, 0.0], dtype=float)
-    
+    base_dir = Path(__file__).resolve().parent
+    output_dir = base_dir / "output"
+    primitives_dir = base_dir / "primitives"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    pose = np.array([0.0, 0.0, 0.0], dtype=float)
+    if RENDER:
         start_robot_environment(initial_pose=pose)
-        primitives = create_motion_primitives(primitives_dir)
-        
-        repeats = 5
-        pose = np.array([0.0, 0.0, 0.0], dtype=float)
-    
-        # primitive_name ["forward_10cm", "turn_1deg_ccw", "turn_1deg_cw"]:
 
-        sequence = [("forward_10cm", 4), ("turn_1deg_cw", 10), ("forward_10cm", 4), ("turn_1deg_ccw", 10), ("forward_10cm", 4), ("turn_1deg_cw", 10), ("forward_10cm", 4)]
-
-        execute_sequence(
-            pose,
-            primitives,
-            sequence,
-            render=True,
-            prefix="part3_sequence",
-            )
-
+    primitives = create_motion_primitives(primitives_dir)
 
     
-        while True:
-            for primitive_name in ["forward_10cm", "turn_1deg_ccw", "backward_10cm", "turn_1deg_cw"]:
-            
-                execute_primitive(
-                    pose,
-                    primitives[primitive_name],
-                    repeats=repeats,
-                    render=True,
-                    primitive_name=f"{primitive_name}_{repeats}x",
-                    show_progress=SHOW_PROGRESS,
-                    )
+    
+    sequence = [
+        ("turn_1deg_ccw", 180),
+        ("forward_10cm", 8),
+        ("turn_1deg_ccw", 90),
+        ("forward_10cm", 12),
+        ("turn_1deg_ccw", 90),
+        ("forward_10cm", 8),
+        ("turn_1deg_ccw", 90),
+        ("forward_10cm", 6),
+        ("turn_1deg_ccw", 45),
+        ("forward_10cm", 2),
+        ("turn_1deg_ccw", 45),
+        ("forward_10cm", 3),
+    ]
+
+    target = predict_sequence_target(pose, primitives, sequence)
+    pose, traj = execute_sequence(
+        pose,
+        primitives,
+        sequence,
+        render=RENDER,
+        prefix="part3_draw_G_45_corner",
+    )
+
+    save_trajectory_plot(
+        traj,
+        target,
+        "part3_draw_G_45_corner",
+        output_dir / "part3_draw_G_45_corner.png",
+    )
+    log_test_summary("part3_draw_G_45_corner", pose, target)
+
+    if RENDER:
         stop_robot_environment()
 
 if __name__ == "__main__":
