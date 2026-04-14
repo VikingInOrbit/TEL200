@@ -13,7 +13,7 @@ import time
 import matplotlib.pyplot as plt
 import numpy as np
 from math import pi
-from roboticstoolbox import ERobot, ET, mstraj
+from roboticstoolbox import ERobot, ET, mstraj, rtb_load_matfile, PRMPlanner
 from roboticstoolbox.backends.PyPlot import PyPlot
 from spatialgeometry import Cuboid
 from spatialmath import SE3
@@ -72,7 +72,7 @@ SIM_DETAIL = 1.0         # 0-1: 1 renders all frames, 0.5 renders ~half.
 SIM_SPEED = 1.0          # viewer playback multiplier
 
 #=============================================================
-# Looger
+# Logger
 #=============================================================
 
 LOGGER = logging.getLogger("walking_testbed")
@@ -779,6 +779,43 @@ def run_part1_required_tests(base_dir, render=False, hold_window=False):
     for name, primitive in primitives.items():
         LOGGER.info("%s: min_support_legs=%d", name, primitive["min_support_legs"])
 
+house = rtb_load_matfile("data/house.mat")
+
+floorplan = house["floorplan"]
+places = house["places"]
+
+prm = PRMPlanner(occgrid=floorplan, seed=0)
+
+prm.plan(300)
+path = prm.query(start=places.br1, goal=places.br2)
+
+
+def followPath(path):
+    for i in range(2, len(path)):
+        x1, y1 = path[i-2]
+        x2, y2 = path[i-1]
+        x3, y3 = path[i]
+
+        v1 = [x2 - x1, y2 - y1]
+        v2 = [x3 - x2, y3 - y2]
+
+        lenv1 = np.sqrt(v1[0]**2 + v1[1]**2)
+        lenv2 = np.sqrt(v2[0]**2 + v2[1]**2)
+        print(lenv2)
+        dot = v1[0] * v2[0] + v1[1] * v2[1]
+        AngleTemp = dot / (lenv1 * lenv2)
+        AngleRad =np.arccos(AngleTemp)
+        Angle = np.degrees(AngleRad)
+        print(Angle)
+
+        Angle = np.round(Angle).astype(int)
+        lenv2 = np.round(lenv2).astype(int)
+        
+
+        print(f"v1: {v1}, v2: {v2}")
+        execute_sequence()
+        for _ in range(int(lenv2)):
+            pass #Activate function for walking forward 10cm
 
 def main():
     """Run Part 1 tests using constants defined at the top of this file."""
@@ -800,6 +837,7 @@ def main():
     render = RENDER
     hold_window = render and HOLD_WINDOW
     run_part1_required_tests(base_dir=base_dir, render=render, hold_window=hold_window)
+    followPath(path)
 
 
 if __name__ == "__main__":
