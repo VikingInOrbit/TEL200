@@ -9,6 +9,7 @@ import csv
 import logging
 import sys
 import time
+import random
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -55,7 +56,7 @@ CAMERA_Z_MIN = -0.20
 
 # Runtime defaults. Update these constants directly before running.
 DT = 0.02
-RENDER = True
+RENDER = False
 
 CATCHUP_MIN_RENDER_DETAIL = 0.005
 CATCHUP_MIN_STEP_DT = 0.001
@@ -802,25 +803,24 @@ def PRMPlanner_use():
 
     floorplan = house["floorplan"]
     places = house["places"]
-    print(places)
 
     prm = PRMPlanner(occgrid=floorplan, seed=0)
 
     prm.plan(300)
-    path = prm.query(start=places.garage, goal=places.br2)
+
+    return prm, places
+
+def createPath(prm, start, goal):
+    path = prm.query(start=start, goal=goal)
     return path
 
-def  createPath(path, vStart=np.array([1,0])):
+def pathToSeq(path):
 
     angles = []
     dists = []
-
-    # TODO missing first entry (Angle and dist from start to first point on grid)
-
+    vStart = np.array([1, 0])
     v2 = np.array(path[1] - path[0])
 
-    print(vStart)
-    print(v2)
     anglerad = np.arctan2(vStart[0]*v2[1] - vStart[1]*v2[0],np.dot(vStart, v2))
     angle = np.rad2deg(anglerad)
     angles.append(round(angle))
@@ -842,9 +842,7 @@ def  createPath(path, vStart=np.array([1,0])):
         angles.append(round(angle))
 
         dists.append(round(np.linalg.norm(vNext) / 10))
-
-    vFinal = path[-1]
-    return angles, dists, vFinal
+    return angles, dists
 
 
 def followPath(angles, dists):
@@ -853,7 +851,6 @@ def followPath(angles, dists):
     assert len(angles) == len(dists) # Number of angles and distances not the same
     sequence = []
     for i, angle in enumerate(angles):
-        print(angle, dists[i])
         if angle >= 0:
             primName = "turn_1deg_ccw"
         else:
@@ -922,40 +919,47 @@ def main_part3():
     output_dir = base_dir / "output"
     primitives_dir = base_dir / "primitives"
     output_dir.mkdir(parents=True, exist_ok=True)
-
-    pose = np.array([0.0, 0.0, 0.0], dtype=float)
-    if RENDER:
-        start_robot_environment(initial_pose=pose)
-
-    primitives = create_motion_primitives(primitives_dir)
+    prm, places = PRMPlanner_use()
+    placelist = list(places)
 
     
-    path = PRMPlanner_use()
-    angles, dists, vStart = createPath(path)
-    sequence = followPath(angles, dists)
+    for i in range(5):
+        start, goal = random.sample(placelist, 2)
+        startroom = getattr(places, start)
+        goalroom = getattr(places, goal)
 
-    target = predict_sequence_target(pose, primitives, sequence)
-    pose, traj = execute_sequence(
-        pose,
-        primitives,
-        sequence,
-        render=RENDER,
-        prefix="part3_draw",
-    )
+        pose = np.array([0.0, 0.0, 0.0], dtype=float)
+        if RENDER:
+            start_robot_environment(initial_pose=pose)
 
-    save_trajectory_plot(
-        traj,
-        target,
-        "part3_draw",
-        output_dir / "part3_draw.png",
-    )
-    log_test_summary("part3_draw", pose, target)
+        primitives = create_motion_primitives(primitives_dir)
 
-    if RENDER:
-        stop_robot_environment()
+        path = createPath(prm, startroom, goalroom)
+
+        angles, dists = pathToSeq(path)
+        sequence = followPath(angles, dists)
+
+        target = predict_sequence_target(pose, primitives, sequence)
+        pose, traj = execute_sequence(
+            pose,
+            primitives,
+            sequence,
+            render=RENDER,
+            prefix="part3_draw",
+        )
+
+        save_trajectory_plot(
+            traj,
+            target,
+            f"part3_{i}_draw",
+            output_dir / f"part3_{i}_draw.png",
+        )
+        log_test_summary("part3_draw", pose, target)
+
+        if RENDER:
+            stop_robot_environment()
 
 if __name__ == "__main__":
-    pass
     #main_part1()
     #main_part2()
     main_part3()
