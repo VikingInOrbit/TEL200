@@ -802,56 +802,67 @@ def PRMPlanner_use():
 
     floorplan = house["floorplan"]
     places = house["places"]
+    print(places)
 
     prm = PRMPlanner(occgrid=floorplan, seed=0)
 
     prm.plan(300)
-    path = prm.query(start=places.br1, goal=places.br2)
+    path = prm.query(start=places.garage, goal=places.br2)
+    return path
 
-def followPath(path, startpose):
+def  createPath(path, vStart=np.array([1,0])):
 
-    # pose = np.array([0.0, 0.0, 0.0], dtype=float)
+    angles = []
+    dists = []
+
+    # TODO missing first entry (Angle and dist from start to first point on grid)
+
+    v2 = np.array(path[1] - path[0])
+
+    print(vStart)
+    print(v2)
+    anglerad = np.arctan2(vStart[0]*v2[1] - vStart[1]*v2[0],np.dot(vStart, v2))
+    angle = np.rad2deg(anglerad)
+    angles.append(round(angle))
+    dists.append(round(np.linalg.norm(v2) / 10))
+
 
     for i in range(2, len(path)):
 
-        x1, y1 = path[i-2]
-        x2, y2 = path[i-1]
-        x3, y3 = path[i]
+        xPrev, yPrev = path[i-2]
+        xCurr, yCurr = path[i-1]
+        xNext, yNext = path[i]
 
-        v1 = np.array([x3 - x2, y3 - y2])
-        v2 = np.array([x2 - x1, y2 - y1])
+        vPrev = np.array([xCurr - xPrev, yCurr - yPrev])
+        vNext = np.array([xNext - xCurr, yNext - yCurr])
 
-        anglerad = np.arctan2(v1[0]*v2[1] - v1[1]*v2[0],np.dot(v1, v2))
+
+        anglerad = np.arctan2(vPrev[0]*vNext[1] - vPrev[1]*vNext[0],np.dot(vPrev, vNext))
         angle = np.rad2deg(anglerad)
-        print(angle)
+        angles.append(round(angle))
 
-    return None
-followPath(path, 0)
+        dists.append(round(np.linalg.norm(vNext) / 10))
 
-def followPathFalse(path):
-
-
+    vFinal = path[-1]
+    return angles, dists, vFinal
 
 
-    for i in range(2, len(path)):
+def followPath(angles, dists):
 
-        lenv1 = np.sqrt(v1[0]**2 + v1[1]**2)
-        lenv2 = np.sqrt(v2[0]**2 + v2[1]**2)
-        print(lenv2)
-        dot = v1[0] * v2[0] + v1[1] * v2[1]
-        AngleTemp = dot / (lenv1 * lenv2)
-        AngleRad =np.arccos(AngleTemp)
-        Angle = np.degrees(AngleRad)
-        print(Angle)
 
-        Angle = np.round(Angle).astype(int)
-        lenv2 = np.round(lenv2).astype(int)
-        
+    assert len(angles) == len(dists) # Number of angles and distances not the same
+    sequence = []
+    for i, angle in enumerate(angles):
+        print(angle, dists[i])
+        if angle >= 0:
+            primName = "turn_1deg_ccw"
+        else:
+            primName = "turn_1deg_cw"
+        sequence.append((primName, np.abs(angle)))
+        primName = "forward_10cm"
+        sequence.append((primName, dists[i]))
+    return sequence
 
-        print(f"v1: {v1}, v2: {v2}")
-        execute_sequence()
-        for _ in range(int(lenv2)):
-            pass #Activate function for walking forward 10cm
 
 def main_part1():
     """Run Part 1 tests using constants defined at the top of this file."""
@@ -919,21 +930,9 @@ def main_part3():
     primitives = create_motion_primitives(primitives_dir)
 
     
-    
-    sequence = [
-        ("turn_1deg_ccw", 180),
-        ("forward_10cm", 8),
-        ("turn_1deg_ccw", 90),
-        ("forward_10cm", 12),
-        ("turn_1deg_ccw", 90),
-        ("forward_10cm", 8),
-        ("turn_1deg_ccw", 90),
-        ("forward_10cm", 6),
-        ("turn_1deg_ccw", 45),
-        ("forward_10cm", 2),
-        ("turn_1deg_ccw", 45),
-        ("forward_10cm", 3),
-    ]
+    path = PRMPlanner_use()
+    angles, dists, vStart = createPath(path)
+    sequence = followPath(angles, dists)
 
     target = predict_sequence_target(pose, primitives, sequence)
     pose, traj = execute_sequence(
@@ -956,6 +955,7 @@ def main_part3():
         stop_robot_environment()
 
 if __name__ == "__main__":
+    pass
     #main_part1()
     #main_part2()
     main_part3()
