@@ -1,4 +1,4 @@
-"""Part 1 testbed for TEL200 walking robot.
+﻿"""Part 1 testbed for TEL200 walking robot.
 
 This module builds motion primitives, runs the required Part 1 tests,
 and exports trajectory plots plus numeric pose errors.
@@ -6,6 +6,7 @@ and exports trajectory plots plus numeric pose errors.
 
 from pathlib import Path
 import csv
+import heapq
 import logging
 import sys
 import time
@@ -811,6 +812,106 @@ def save_path_planning_map_plot(floorplan, path_segments, title, output_path):
     plt.close(fig)
 
 
+def save_grid_path_planning_plot(occgrid, path_segments, title, output_path):
+    """Save a generic occupancy-grid plot with path overlays.
+
+    Args:
+        occgrid: Occupancy grid where 0 denotes free cells.
+        path_segments: List of (segment_name, planner_name, path_points) tuples.
+        title: Plot title.
+        output_path: Path to output image file.
+
+    Returns:
+        None.
+    """
+    fig, ax = plt.subplots(figsize=(10, 7))
+
+    occgrid = np.asarray(occgrid)
+    height, width = occgrid.shape
+    ax.imshow(
+        occgrid,
+        origin="lower",
+        cmap="gray_r",
+        extent=[0, width, 0, height],
+        interpolation="nearest",
+    )
+
+    color_map = plt.colormaps.get_cmap("tab20")
+    for idx, (segment_name, planner_name, path) in enumerate(path_segments):
+        path = np.asarray(path, dtype=float)
+        color = color_map(idx % color_map.N)
+        label = f"{planner_name}:{segment_name}" if idx < 10 else None
+        ax.plot(path[:, 0], path[:, 1], color=color, linewidth=1.4, alpha=0.9, label=label)
+        ax.scatter(path[0, 0], path[0, 1], color=color, s=18, marker="o")
+        ax.scatter(path[-1, 0], path[-1, 1], color=color, s=18, marker="x")
+
+    ax.set_title(title)
+    ax.set_xlabel("x [cell]")
+    ax.set_ylabel("y [cell]")
+    ax.set_aspect("equal", adjustable="box")
+    ax.set_xlim(0, width)
+    ax.set_ylim(0, height)
+    ax.grid(False)
+    if path_segments:
+        ax.legend(loc="upper right", fontsize=8, framealpha=0.85)
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=160)
+    plt.close(fig)
+
+
+def save_scanmap_plots(scanmap_counts, killian_map, threshold_m, raw_output_path, binary_output_path):
+    """Save raw count-map and thresholded binary KillianMap plots.
+
+    Args:
+        scanmap_counts: Integer scan evidence map.
+        killian_map: Binary occupancy map generated from scanmap_counts.
+        threshold_m: Threshold used for free-space decision.
+        raw_output_path: Path for raw scanmap figure.
+        binary_output_path: Path for binary map figure.
+
+    Returns:
+        None.
+    """
+    scanmap_counts = np.asarray(scanmap_counts, dtype=float)
+    killian_map = np.asarray(killian_map, dtype=float)
+
+    finite_vals = scanmap_counts[np.isfinite(scanmap_counts)]
+    if finite_vals.size:
+        color_limit = float(np.percentile(np.abs(finite_vals), 99.0))
+        color_limit = max(color_limit, 1.0)
+    else:
+        color_limit = 1.0
+
+    fig_raw, ax_raw = plt.subplots(figsize=(10, 7))
+    im = ax_raw.imshow(
+        scanmap_counts,
+        origin="lower",
+        cmap="coolwarm",
+        vmin=-color_limit,
+        vmax=color_limit,
+        interpolation="nearest",
+    )
+    ax_raw.set_title("Part 3: Raw Killian scan evidence map")
+    ax_raw.set_xlabel("x [cell]")
+    ax_raw.set_ylabel("y [cell]")
+    ax_raw.set_aspect("equal", adjustable="box")
+    cbar = fig_raw.colorbar(im, ax=ax_raw)
+    cbar.set_label("scan evidence count")
+    fig_raw.tight_layout()
+    fig_raw.savefig(raw_output_path, dpi=160)
+    plt.close(fig_raw)
+
+    fig_bin, ax_bin = plt.subplots(figsize=(10, 7))
+    ax_bin.imshow(killian_map, origin="lower", cmap="gray_r", interpolation="nearest")
+    ax_bin.set_title(f"Part 3: Binary KillianMap (free if scans > {threshold_m})")
+    ax_bin.set_xlabel("x [cell]")
+    ax_bin.set_ylabel("y [cell]")
+    ax_bin.set_aspect("equal", adjustable="box")
+    fig_bin.tight_layout()
+    fig_bin.savefig(binary_output_path, dpi=160)
+    plt.close(fig_bin)
+
+
 def format_pose_m_deg(pose):
     """Format pose [x, y, theta] as meters/degrees text.
 
@@ -1114,6 +1215,292 @@ def run_part1_required_tests(base_dir, render=False, hold_window=False):
 #=============================================================
 # Part 3 Path Planning Helpers
 #=============================================================
+
+def estimate_killian_world_bounds(pg, sample_step=50, margin_m=2.0):
+    """Estimate world-coordinate bounds for Killian scan data.
+
+    Args:
+        pg: PoseGraph instance with lidar scans.
+        sample_step: Vertex stride used while estimating bounds.
+        margin_m: Extra boundary margin in meters.
+
+    Returns:
+        tuple[np.ndarray, np.ndarray]: (mins_xy, maxs_xy) in meters.
+    """
+    mins = np.array([np.inf, np.inf], dtype=float)
+    maxs = np.array([-np.inf, -np.inf], dtype=float)
+
+    step = max(1, int(sample_step))
+    for i in range(0, pg.graph.n, step):
+        xyt = np.asarray(pg.vindex[i].coord, dtype=float).reshape(3)
+        xy_local = np.asarray(pg.scanxy(i), dtype=float)
+
+        finite = np.isfinite(xy_local).all(axis=0)
+        xy_local = xy_local[:, finite]
+        if xy_local.shape[1] == 0:
+            continue
+
+        c = np.cos(xyt[2])
+        s = np.sin(xyt[2])
+        rot = np.array([[c, -s], [s, c]], dtype=float)
+        xy_world = (rot @ xy_local) + xyt[:2].reshape(2, 1)
+
+        pts = np.vstack((xy_world.T, xyt[:2].reshape(1, 2)))
+        mins = np.minimum(mins, np.min(pts, axis=0))
+        maxs = np.maximum(maxs, np.max(pts, axis=0))
+
+    if not np.all(np.isfinite(mins)) or not np.all(np.isfinite(maxs)):
+        raise RuntimeError("Unable to estimate finite Killian map bounds")
+
+    mins -= float(margin_m)
+    maxs += float(margin_m)
+    return mins, maxs
+
+
+def build_scanmap_counts_from_posegraph(
+    pg,
+    cellsize_m=0.2,
+    sample_step=5,
+    bounds_sample_step=50,
+    maxrange=None,
+):
+    """Generate integer scan evidence map from PoseGraph lidar rays.
+
+    Uses the same ray-tracing semantics as PoseGraph.scanmap but preserves
+    integer counts (free-space increments and hit-cell decrements).
+
+    Args:
+        pg: PoseGraph instance with lidar scans.
+        cellsize_m: Occupancy-grid cell size in meters.
+        sample_step: Vertex stride while rasterizing scans.
+        bounds_sample_step: Vertex stride while estimating world bounds.
+        maxrange: Optional lidar max range filter in meters.
+
+    Returns:
+        tuple[np.ndarray, object]: Integer count map and OccupancyGrid object.
+    """
+    from roboticstoolbox.mobile import OccupancyGrid
+
+    if cellsize_m <= 0:
+        raise ValueError("cellsize_m must be positive")
+
+    mins, maxs = estimate_killian_world_bounds(pg, sample_step=bounds_sample_step)
+    width = int(np.ceil((maxs[0] - mins[0]) / cellsize_m)) + 1
+    height = int(np.ceil((maxs[1] - mins[1]) / cellsize_m)) + 1
+
+    occgrid = OccupancyGrid(
+        np.zeros((height, width), dtype=np.int32),
+        origin=(mins[0], mins[1]),
+        cellsize=cellsize_m,
+    )
+
+    step = max(1, int(sample_step))
+    scan_indices = list(range(0, pg.graph.n, step))
+    progress = SimpleProgressBar(
+        len(scan_indices),
+        prefix="part3_scanmap",
+        enabled=SHOW_PROGRESS,
+    )
+
+    grid1d = occgrid.ravel
+    for i in scan_indices:
+        xyt = np.asarray(pg.vindex[i].coord, dtype=float).reshape(3)
+        xy_local = np.asarray(pg.scanxy(i), dtype=float)
+        ranges, _ = pg.scan(i)
+        ranges = np.asarray(ranges, dtype=float)
+
+        finite = np.isfinite(xy_local).all(axis=0) & np.isfinite(ranges)
+        if maxrange is not None:
+            finite &= ranges <= float(maxrange)
+
+        xy_local = xy_local[:, finite]
+        if xy_local.shape[1] == 0:
+            progress.update(1)
+            continue
+
+        c = np.cos(xyt[2])
+        s = np.sin(xyt[2])
+        rot = np.array([[c, -s], [s, c]], dtype=float)
+        xy_world = (rot @ xy_local) + xyt[:2].reshape(2, 1)
+
+        p1 = occgrid.w2g(xyt[:2])
+        for p2 in occgrid.w2g(xy_world.T):
+            try:
+                ray_idx = occgrid._line(p1, p2)
+            except ValueError:
+                continue
+
+            if len(ray_idx) == 0:
+                continue
+
+            grid1d[ray_idx[:-1]] += 1
+            grid1d[ray_idx[-1]] -= 1
+
+        progress.update(1)
+
+    progress.close()
+    return np.array(occgrid.grid, dtype=np.int32), occgrid
+
+
+def build_killian_binary_map(scanmap_counts, threshold_m=10):
+    """Threshold integer scan evidence into binary occupancy grid.
+
+    Free-space rule from assignment: cell = 0 only when scans > M,
+    otherwise cell = 1.
+
+    Args:
+        scanmap_counts: Integer evidence map.
+        threshold_m: Threshold M used in free-space rule.
+
+    Returns:
+        np.ndarray: Binary occupancy map with values {0, 1}.
+    """
+    scanmap_counts = np.asarray(scanmap_counts)
+    killian_map = np.ones_like(scanmap_counts, dtype=np.uint8)
+    killian_map[scanmap_counts > float(threshold_m)] = 0
+    return killian_map
+
+
+def sample_free_space_pairs(occgrid, n_pairs, rng, min_dist_cells=20.0):
+    """Sample random start-goal pairs from free cells.
+
+    Args:
+        occgrid: Binary occupancy grid where 0 is free.
+        n_pairs: Number of pairs to sample.
+        rng: np.random.Generator instance.
+        min_dist_cells: Minimum Euclidean distance between start and goal.
+
+    Returns:
+        list[tuple[np.ndarray, np.ndarray]]: Start/goal XY pairs in cells.
+    """
+    occgrid = np.asarray(occgrid)
+    free_rc = np.argwhere(occgrid == 0)
+    if free_rc.shape[0] < 2:
+        raise RuntimeError("KillianMap has insufficient free cells for sampling")
+
+    pairs = []
+    max_attempts = max(200, int(n_pairs) * 500)
+    attempts = 0
+    while len(pairs) < int(n_pairs) and attempts < max_attempts:
+        attempts += 1
+        start_rc = free_rc[int(rng.integers(free_rc.shape[0]))]
+        goal_rc = free_rc[int(rng.integers(free_rc.shape[0]))]
+
+        if np.array_equal(start_rc, goal_rc):
+            continue
+
+        start_xy = np.array([start_rc[1], start_rc[0]], dtype=float)
+        goal_xy = np.array([goal_rc[1], goal_rc[0]], dtype=float)
+        if np.linalg.norm(goal_xy - start_xy) < float(min_dist_cells):
+            continue
+
+        pairs.append((start_xy, goal_xy))
+
+    if len(pairs) < int(n_pairs):
+        LOGGER.warning(
+            "Requested %d random pairs but sampled %d valid pairs",
+            int(n_pairs),
+            len(pairs),
+        )
+
+    return pairs
+
+
+def grid_shortest_path(occgrid, start_xy, goal_xy, use_heuristic=True):
+    """Compute shortest path on binary occupancy grid using A*/Dijkstra.
+
+    Args:
+        occgrid: Binary occupancy grid where 0 is free.
+        start_xy: Start [x, y] in cell coordinates.
+        goal_xy: Goal [x, y] in cell coordinates.
+        use_heuristic: If True, A* (Euclidean heuristic); else Dijkstra.
+
+    Returns:
+        np.ndarray | None: Path as Nx2 XY coordinates, or None if no path.
+    """
+    occgrid = np.asarray(occgrid)
+    height, width = occgrid.shape
+
+    start = (int(round(start_xy[0])), int(round(start_xy[1])))
+    goal = (int(round(goal_xy[0])), int(round(goal_xy[1])))
+
+    def is_free(node):
+        x, y = node
+        return (0 <= x < width) and (0 <= y < height) and (occgrid[y, x] == 0)
+
+    if not is_free(start) or not is_free(goal):
+        return None
+
+    neighbors = (
+        (1, 0, 1.0),
+        (-1, 0, 1.0),
+        (0, 1, 1.0),
+        (0, -1, 1.0),
+        (1, 1, np.sqrt(2.0)),
+        (1, -1, np.sqrt(2.0)),
+        (-1, 1, np.sqrt(2.0)),
+        (-1, -1, np.sqrt(2.0)),
+    )
+
+    open_heap = [(0.0, 0.0, start)]
+    g_cost = {start: 0.0}
+    parent = {start: None}
+
+    while open_heap:
+        _, current_g, current = heapq.heappop(open_heap)
+        if current_g > g_cost.get(current, np.inf) + 1e-12:
+            continue
+
+        if current == goal:
+            break
+
+        cx, cy = current
+        for dx, dy, step_cost in neighbors:
+            nxt = (cx + dx, cy + dy)
+            if not is_free(nxt):
+                continue
+
+            tentative_g = current_g + float(step_cost)
+            if tentative_g + 1e-12 < g_cost.get(nxt, np.inf):
+                g_cost[nxt] = tentative_g
+                parent[nxt] = current
+
+                if use_heuristic:
+                    hx = goal[0] - nxt[0]
+                    hy = goal[1] - nxt[1]
+                    h_val = float(np.hypot(hx, hy))
+                else:
+                    h_val = 0.0
+
+                heapq.heappush(open_heap, (tentative_g + h_val, tentative_g, nxt))
+
+    if goal not in parent:
+        return None
+
+    path_nodes = []
+    node = goal
+    while node is not None:
+        path_nodes.append(node)
+        node = parent[node]
+    path_nodes.reverse()
+
+    return np.asarray(path_nodes, dtype=float)
+
+
+def path_length_cells(path):
+    """Compute polyline length in grid-cell units.
+
+    Args:
+        path: Path as Nx2 array.
+
+    Returns:
+        float: Path length in cell units.
+    """
+    path = np.asarray(path, dtype=float)
+    if path.shape[0] < 2:
+        return 0.0
+    diffs = np.diff(path, axis=0)
+    return float(np.sum(np.linalg.norm(diffs, axis=1)))
 
 def PRMPlanner_use():
     """Create and pre-plan a PRM planner from the house occupancy grid.
@@ -1831,8 +2218,303 @@ def main_part2_2(
     LOGGER.info("Part 2.2 trajectory plot: %s", trajectory_plot_file)
 
 
+def main_part3(
+    threshold_m=10,
+    n_queries=5,
+    prm_npoints=3000,
+    map_cellsize_m=0.2,
+    random_seed=0,
+):
+    """Run Part 3 mapping and planning on MIT Killian Court data.
+
+    Pipeline:
+    1. Load PoseGraph lidar dataset.
+    2. Build integer scan-evidence map using Bresenham ray traversal.
+    3. Threshold map to binary KillianMap with free rule (count > M).
+    4. Compare PRM, A*, and Dijkstra on random free-space queries.
+
+    Args:
+        threshold_m: Free-cell threshold M.
+        n_queries: Number of random start-goal queries.
+        prm_npoints: Number of roadmap nodes for PRM.
+        map_cellsize_m: Cell size used while rasterizing scanmap.
+        random_seed: RNG seed for reproducible query sampling.
+
+    Returns:
+        None.
+    """
+    from roboticstoolbox.mobile import PoseGraph
+
+    setup_logging(DEBUG_MODE)
+
+    base_dir = Path(__file__).resolve().parent
+    output_dir = base_dir / "output"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    query_count = max(1, int(n_queries))
+    threshold_m = float(threshold_m)
+    prm_npoints = max(200, int(prm_npoints))
+    map_cellsize_m = float(map_cellsize_m)
+
+    LOGGER.info(
+        "Running Part 3: mapping + planner comparison (M=%.1f, queries=%d, prm_npoints=%d, cellsize=%.3f m, seed=%d)",
+        threshold_m,
+        query_count,
+        prm_npoints,
+        map_cellsize_m,
+        int(random_seed),
+    )
+
+    pg = PoseGraph("data/killian.g2o.zip", lidar=True)
+
+    scanmap_counts, _ = build_scanmap_counts_from_posegraph(
+        pg,
+        cellsize_m=map_cellsize_m,
+        sample_step=5,
+        bounds_sample_step=50,
+        maxrange=None,
+    )
+    killian_map = build_killian_binary_map(scanmap_counts, threshold_m=threshold_m)
+
+    raw_scan_plot = output_dir / "part3_scanmap_raw.png"
+    killian_map_plot = output_dir / f"part3_killianmap_m{int(round(threshold_m))}.png"
+    save_scanmap_plots(
+        scanmap_counts,
+        killian_map,
+        threshold_m=threshold_m,
+        raw_output_path=raw_scan_plot,
+        binary_output_path=killian_map_plot,
+    )
+
+    map_stats_file = output_dir / "part3_map_stats.csv"
+    with map_stats_file.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(
+            [
+                "threshold_m",
+                "cellsize_m",
+                "height_cells",
+                "width_cells",
+                "scanmap_min",
+                "scanmap_max",
+                "free_cells",
+                "occupied_or_unknown_cells",
+                "free_ratio",
+            ]
+        )
+        free_cells = int(np.sum(killian_map == 0))
+        total_cells = int(killian_map.size)
+        writer.writerow(
+            [
+                threshold_m,
+                map_cellsize_m,
+                killian_map.shape[0],
+                killian_map.shape[1],
+                int(np.min(scanmap_counts)),
+                int(np.max(scanmap_counts)),
+                free_cells,
+                total_cells - free_cells,
+                float(free_cells / max(1, total_cells)),
+            ]
+        )
+
+    rng = np.random.default_rng(int(random_seed))
+    query_pairs = sample_free_space_pairs(
+        killian_map,
+        n_pairs=query_count,
+        rng=rng,
+        min_dist_cells=20.0,
+    )
+
+    prm = PRMPlanner(occgrid=killian_map, seed=int(random_seed))
+    prm.plan(prm_npoints)
+
+    planner_rows = []
+    prm_segments = []
+    astar_segments = []
+    dijkstra_segments = []
+
+    for query_idx, (start_xy, goal_xy) in enumerate(query_pairs, start=1):
+        LOGGER.info(
+            "Part 3 query %d/%d start=(%.1f, %.1f) goal=(%.1f, %.1f)",
+            query_idx,
+            len(query_pairs),
+            start_xy[0],
+            start_xy[1],
+            goal_xy[0],
+            goal_xy[1],
+        )
+
+        t0 = time.perf_counter()
+        prm_path_query = None
+        try:
+            prm_path_query = prm.query(start=start_xy, goal=goal_xy)
+        except Exception as exc:
+            LOGGER.warning(
+                "PRM query failed for query %d: %s",
+                query_idx,
+                str(exc),
+            )
+        prm_runtime = time.perf_counter() - t0
+        prm_success = False
+        prm_path = None
+        if prm_path_query is not None:
+            candidate = np.asarray(prm_path_query, dtype=float)
+            if candidate.ndim == 2 and candidate.shape[0] >= 2:
+                prm_success = True
+                prm_path = candidate
+                prm_segments.append((f"q{query_idx}", "PRM", prm_path))
+
+        planner_rows.append(
+            [
+                query_idx,
+                "PRM",
+                start_xy[0],
+                start_xy[1],
+                goal_xy[0],
+                goal_xy[1],
+                prm_success,
+                prm_runtime,
+                int(prm_path.shape[0]) if prm_success else 0,
+                path_length_cells(prm_path) if prm_success else np.nan,
+            ]
+        )
+
+        t0 = time.perf_counter()
+        astar_path = grid_shortest_path(killian_map, start_xy, goal_xy, use_heuristic=True)
+        astar_runtime = time.perf_counter() - t0
+        astar_success = astar_path is not None and astar_path.shape[0] >= 2
+        if astar_success:
+            astar_segments.append((f"q{query_idx}", "AStar", astar_path))
+
+        planner_rows.append(
+            [
+                query_idx,
+                "AStar",
+                start_xy[0],
+                start_xy[1],
+                goal_xy[0],
+                goal_xy[1],
+                astar_success,
+                astar_runtime,
+                int(astar_path.shape[0]) if astar_success else 0,
+                path_length_cells(astar_path) if astar_success else np.nan,
+            ]
+        )
+
+        t0 = time.perf_counter()
+        dijkstra_path = grid_shortest_path(killian_map, start_xy, goal_xy, use_heuristic=False)
+        dijkstra_runtime = time.perf_counter() - t0
+        dijkstra_success = dijkstra_path is not None and dijkstra_path.shape[0] >= 2
+        if dijkstra_success:
+            dijkstra_segments.append((f"q{query_idx}", "Dijkstra", dijkstra_path))
+
+        planner_rows.append(
+            [
+                query_idx,
+                "Dijkstra",
+                start_xy[0],
+                start_xy[1],
+                goal_xy[0],
+                goal_xy[1],
+                dijkstra_success,
+                dijkstra_runtime,
+                int(dijkstra_path.shape[0]) if dijkstra_success else 0,
+                path_length_cells(dijkstra_path) if dijkstra_success else np.nan,
+            ]
+        )
+
+    planner_metrics_file = output_dir / "part3_planner_comparison.csv"
+    with planner_metrics_file.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(
+            [
+                "query_id",
+                "planner",
+                "start_x_cell",
+                "start_y_cell",
+                "goal_x_cell",
+                "goal_y_cell",
+                "success",
+                "runtime_s",
+                "path_points",
+                "path_length_cells",
+            ]
+        )
+        writer.writerows(planner_rows)
+
+    planner_summary_file = output_dir / "part3_planner_summary.csv"
+    planner_names = ("PRM", "AStar", "Dijkstra")
+    with planner_summary_file.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(
+            [
+                "planner",
+                "queries",
+                "success_count",
+                "success_rate",
+                "mean_runtime_s",
+                "mean_path_length_cells_success_only",
+            ]
+        )
+
+        for planner_name in planner_names:
+            planner_rows_np = [row for row in planner_rows if row[1] == planner_name]
+            queries = len(planner_rows_np)
+            success_rows = [row for row in planner_rows_np if bool(row[6])]
+            success_count = len(success_rows)
+            success_rate = float(success_count / max(1, queries))
+            mean_runtime = float(np.mean([row[7] for row in planner_rows_np])) if planner_rows_np else np.nan
+            mean_path_len = (
+                float(np.mean([row[9] for row in success_rows])) if success_rows else np.nan
+            )
+
+            writer.writerow(
+                [
+                    planner_name,
+                    queries,
+                    success_count,
+                    success_rate,
+                    mean_runtime,
+                    mean_path_len,
+                ]
+            )
+
+    prm_plot = output_dir / "part3_prm_paths.png"
+    astar_plot = output_dir / "part3_astar_paths.png"
+    dijkstra_plot = output_dir / "part3_dijkstra_paths.png"
+
+    save_grid_path_planning_plot(
+        killian_map,
+        prm_segments,
+        "Part 3 PRM paths on KillianMap",
+        prm_plot,
+    )
+    save_grid_path_planning_plot(
+        killian_map,
+        astar_segments,
+        "Part 3 A* paths on KillianMap",
+        astar_plot,
+    )
+    save_grid_path_planning_plot(
+        killian_map,
+        dijkstra_segments,
+        "Part 3 Dijkstra paths on KillianMap",
+        dijkstra_plot,
+    )
+
+    LOGGER.info("Part 3 map stats: %s", map_stats_file)
+    LOGGER.info("Part 3 planner comparison: %s", planner_metrics_file)
+    LOGGER.info("Part 3 planner summary: %s", planner_summary_file)
+    LOGGER.info("Part 3 raw scanmap plot: %s", raw_scan_plot)
+    LOGGER.info("Part 3 binary map plot: %s", killian_map_plot)
+    LOGGER.info("Part 3 PRM plot: %s", prm_plot)
+    LOGGER.info("Part 3 A* plot: %s", astar_plot)
+    LOGGER.info("Part 3 Dijkstra plot: %s", dijkstra_plot)
+
+
 if __name__ == "__main__":
     # main_part1()
     # main_part2()
-    main_part2_2(num_waypoints=None, both_ways=True, all_hubs=True)
+    main_part2_2(num_waypoints=2, both_ways=True, all_hubs=True)
     # main_part3()
