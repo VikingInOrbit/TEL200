@@ -1,4 +1,4 @@
-﻿"""Part 1 testbed for TEL200 walking robot.
+"""Part 1 testbed for TEL200 walking robot.
 
 This module builds motion primitives, runs the required Part 1 tests,
 and exports trajectory plots plus numeric pose errors.
@@ -7,7 +7,6 @@ and exports trajectory plots plus numeric pose errors.
 from pathlib import Path
 import csv
 import heapq
-import logging
 import sys
 import time
 import random
@@ -73,43 +72,17 @@ SIM_DETAIL = 1.0         # 0-1: 1 renders all frames, 0.5 renders ~half.
 SIM_SPEED = 5.0          # viewer playback multiplier
 
 
-#=============================================================
-# Logger
-#=============================================================
-
-LOGGER = logging.getLogger("walking_testbed")
-
-
 def setup_logging(debug=False):
-    """Configure the module logger.
+    """Configure runtime debug flag.
 
     Args:
-        debug: If True, use DEBUG level; otherwise INFO.
+        debug: If True, enable DEBUG print output.
 
     Returns:
         None.
     """
-    level = logging.DEBUG if debug else logging.INFO
-
-    formatter = logging.Formatter(
-        fmt="%(asctime)s %(levelname)s | %(message)s",
-        datefmt="%H:%M:%S",
-    )
-
-    if not LOGGER.handlers:
-        handler = logging.StreamHandler()
-        handler.setFormatter(formatter)
-        LOGGER.addHandler(handler)
-    else:
-        for handler in LOGGER.handlers:
-            handler.setFormatter(formatter)
-
-    LOGGER.setLevel(level)
-    LOGGER.propagate = False
-
-    # Keep third-party logs quiet.
-    logging.getLogger("matplotlib").setLevel(logging.WARNING)
-    logging.getLogger("PIL").setLevel(logging.WARNING)
+    global DEBUG_MODE
+    DEBUG_MODE = bool(debug)
 
 
 class SimpleProgressBar:
@@ -231,7 +204,8 @@ def build_gait_cycle(leg):
     x = mstraj(segments, tsegment=[3, 0.25, 0.5, 0.25], dt=0.01, tacc=0.07)
     xcycle = x.q
     xcycle = np.vstack((xcycle, xcycle[-3:, :]))
-    LOGGER.debug("Built Cartesian gait cycle with shape %s", xcycle.shape)
+    if DEBUG_MODE:
+        print(f"Built Cartesian gait cycle with shape {xcycle.shape}")
 
     # Solve IK sequentially so each step stays on the same kinematic branch.
     # This avoids abrupt joint flips between consecutive samples.
@@ -505,11 +479,9 @@ def create_motion_primitives(primitives_dir):
         primitive_name="turn_1deg_cw",
     )
 
-    LOGGER.info(
-        "Saved motion primitives in %s (steps=%d, min_support_legs=%d)",
-        primitives_dir,
-        primitive_steps,
-        min_support,
+    print(
+        f"Saved motion primitives in {primitives_dir} "
+        f"(steps={primitive_steps}, min_support_legs={min_support})"
     )
 
     return {
@@ -636,19 +608,14 @@ def execute_primitive(
     sim_dt = primitive_step_sim_dt(primitive)
     render_dt = primitive_step_render_dt(primitive)
     detail = min(max(float(SIM_DETAIL), 0.0), 1.0)
-    primitive_log_level = logging.INFO if LOG_PRIMITIVE_DETAILS else logging.DEBUG
 
     total_steps = repeats * primitive["steps"]
     progress = SimpleProgressBar(total_steps, prefix=primitive_name, enabled=show_progress)
-    LOGGER.log(
-        primitive_log_level,
-        "Executing %s for %d repeats (sim_dt=%.6fs, real_dt=%.6fs, detail=%.2f)",
-        primitive_name,
-        repeats,
-        sim_dt,
-        render_dt,
-        detail,
-    )
+    if LOG_PRIMITIVE_DETAILS or DEBUG_MODE:
+        print(
+            f"Executing {primitive_name} for {repeats} repeats "
+            f"(sim_dt={sim_dt:.6f}s, real_dt={render_dt:.6f}s, detail={detail:.2f})"
+        )
 
     # Accumulate frame budget and dt so lower SIM_DETAIL still advances time correctly.
     frame_budget = 0.0
@@ -678,14 +645,10 @@ def execute_primitive(
                     adaptive_detail = detail / (1.0 + lag_ratio)
                     adaptive_detail = max(CATCHUP_MIN_RENDER_DETAIL, adaptive_detail)
                     effective_detail = min(detail, CATCHUP_RENDER_DETAIL, adaptive_detail)
-                    if not catchup_logged:
-                        LOGGER.log(
-                            primitive_log_level,
-                            "Realtime catch-up engaged for %s (lag=%.3fs, detail %.2f -> %.2f)",
-                            primitive_name,
-                            lag,
-                            detail,
-                            effective_detail,
+                    if not catchup_logged and (LOG_PRIMITIVE_DETAILS or DEBUG_MODE):
+                        print(
+                            f"Realtime catch-up engaged for {primitive_name} "
+                            f"(lag={lag:.3f}s, detail {detail:.2f} -> {effective_detail:.2f})"
                         )
                         catchup_logged = True
 
@@ -713,23 +676,15 @@ def execute_primitive(
 
             progress.update(1)
             if DEBUG_MODE and ((s + 1) % 50 == 0 or s == primitive["steps"] - 1):
-                LOGGER.debug(
-                    "%s repeat %d/%d step %d/%d pose=%s",
-                    primitive_name,
-                    repeat_idx + 1,
-                    repeats,
-                    s + 1,
-                    primitive["steps"],
-                    np.array2string(pose, precision=4),
+                print(
+                    f"{primitive_name} repeat {repeat_idx + 1}/{repeats} "
+                    f"step {s + 1}/{primitive['steps']} "
+                    f"pose={np.array2string(pose, precision=4)}"
                 )
 
     progress.close()
-    LOGGER.log(
-        primitive_log_level,
-        "Finished %s. Final pose=%s",
-        primitive_name,
-        np.array2string(pose, precision=4),
-    )
+    if LOG_PRIMITIVE_DETAILS or DEBUG_MODE:
+        print(f"Finished {primitive_name}. Final pose={np.array2string(pose, precision=4)}")
     return pose, np.array(trajectory)
 
 
@@ -961,14 +916,10 @@ def log_test_summary(test_name, pose, target):
         None.
     """
     err = pose - target
-    LOGGER.info(
-        "%s | final=(%s) | target=(%s) | err=(%.6f m, %.6f m, %.6f deg)",
-        test_name,
-        format_pose_m_deg(pose),
-        format_pose_m_deg(target),
-        err[0],
-        err[1],
-        np.rad2deg(err[2]),
+    print(
+        f"{test_name} | final=({format_pose_m_deg(pose)}) | "
+        f"target=({format_pose_m_deg(target)}) | "
+        f"err=({err[0]:.6f} m, {err[1]:.6f} m, {np.rad2deg(err[2]):.6f} deg)"
     )
 
 
@@ -1148,7 +1099,7 @@ def run_part1_required_tests(base_dir, render=False, hold_window=False):
     primitives_dir = base_dir / "primitives"
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    LOGGER.info("Running Part 1 tests. render=%s hold_window=%s", render, hold_window)
+    print(f"Running Part 1 tests. render={render} hold_window={hold_window}")
     primitives = create_motion_primitives(primitives_dir)
 
     metrics = []
@@ -1182,7 +1133,8 @@ def run_part1_required_tests(base_dir, render=False, hold_window=False):
         )
         append_metrics_row(metrics, test_case["name"], pose, target)
         log_test_summary(test_case["name"], pose, target)
-        LOGGER.debug("%s sequence: %s", test_case["name"], format_sequence(sequence_steps))
+        if DEBUG_MODE:
+            print(f"{test_case['name']} sequence: {format_sequence(sequence_steps)}")
 
     if render:
         if hold_window and env is not None:
@@ -1206,10 +1158,10 @@ def run_part1_required_tests(base_dir, render=False, hold_window=False):
         )
         writer.writerows(metrics)
 
-    LOGGER.info("Part 1 artifacts written to: %s", output_dir)
-    LOGGER.info("Primitives written to: %s", primitives_dir)
+    print(f"Part 1 artifacts written to: {output_dir}")
+    print(f"Primitives written to: {primitives_dir}")
     for name, primitive in primitives.items():
-        LOGGER.info("%s: min_support_legs=%d", name, primitive["min_support_legs"])
+        print(f"{name}: min_support_legs={primitive['min_support_legs']}")
 
 
 #=============================================================
@@ -1397,11 +1349,7 @@ def sample_free_space_pairs(occgrid, n_pairs, rng, min_dist_cells=20.0):
         pairs.append((start_xy, goal_xy))
 
     if len(pairs) < int(n_pairs):
-        LOGGER.warning(
-            "Requested %d random pairs but sampled %d valid pairs",
-            int(n_pairs),
-            len(pairs),
-        )
+        print(f"Requested {int(n_pairs)} random pairs but sampled {len(pairs)} valid pairs")
 
     return pairs
 
@@ -1744,17 +1692,11 @@ def main_part1():
         None.
     """
     setup_logging(DEBUG_MODE)
-    LOGGER.info(
-        "Config: simspeed=%.3f simdetail=%.2f robotspeed=%.3f robotrotspeed=%.3f render=%s debug=%s progress=%s primitive_logs=%s realtime_catchup=%s",
-        SIM_SPEED,
-        SIM_DETAIL,
-        ROBOT_SPEED,
-        ROBOT_ROT_SPEED,
-        RENDER,
-        DEBUG_MODE,
-        SHOW_PROGRESS,
-        LOG_PRIMITIVE_DETAILS,
-        REALTIME_CATCHUP,
+    print(
+        f"Config: simspeed={SIM_SPEED:.3f} simdetail={SIM_DETAIL:.2f} "
+        f"robotspeed={ROBOT_SPEED:.3f} robotrotspeed={ROBOT_ROT_SPEED:.3f} "
+        f"render={RENDER} debug={DEBUG_MODE} progress={SHOW_PROGRESS} "
+        f"primitive_logs={LOG_PRIMITIVE_DETAILS} realtime_catchup={REALTIME_CATCHUP}"
     )
 
     base_dir = Path(__file__).resolve().parent
@@ -1800,16 +1742,16 @@ def main_part2():
             primitives,
             sequence,
             render=RENDER,
-            prefix="part3_draw",
+            prefix="part2_draw",
         )
 
         save_trajectory_plot(
             traj,
             target,
-            f"part3_{i}_draw",
-            output_dir / f"part3_{i}_draw.png",
+            f"part2_{i}_draw",
+            output_dir / f"part2_{i}_draw.png",
         )
-        log_test_summary("part3_draw", pose, target)
+        log_test_summary("part2_draw", pose, target)
 
         if RENDER:
             stop_robot_environment()
@@ -1854,7 +1796,7 @@ def main_part2_2(
         mode_text = "all-hub out-and-back" if both_ways else "all-hub out-only"
     else:
         mode_text = "single-hub out-and-back" if both_ways else "single-hub out-only"
-    LOGGER.info("Running Part 2.2: Continuous multi-path navigation (%s)", mode_text)
+    print(f"Running Part 2.2: Continuous multi-path navigation ({mode_text})")
 
     house = rtb_load_matfile("data/house.mat")
     floorplan = house["floorplan"]
@@ -1898,26 +1840,17 @@ def main_part2_2(
     total_segments = len(segment_pairs)
 
     if all_hubs:
-        LOGGER.info(
-            "Part 2.2 using %d/%d hubs (%d/%d places) -> %d segments (all_hubs=%s, tolerance=%.3f m, max_refines=%d)",
-            total_hubs,
-            total_places - 1,
-            selected_count,
-            total_places,
-            total_segments,
-            all_hubs,
-            segment_goal_tolerance_m,
-            max_refine_loops,
+        print(
+            f"Part 2.2 using {total_hubs}/{total_places - 1} hubs "
+            f"({selected_count}/{total_places} places) -> {total_segments} segments "
+            f"(all_hubs={all_hubs}, tolerance={segment_goal_tolerance_m:.3f} m, "
+            f"max_refines={max_refine_loops})"
         )
     else:
-        LOGGER.info(
-            "Part 2.2 using %d/%d places -> %d segments (all_hubs=%s, tolerance=%.3f m, max_refines=%d)",
-            selected_count,
-            total_places,
-            total_segments,
-            all_hubs,
-            segment_goal_tolerance_m,
-            max_refine_loops,
+        print(
+            f"Part 2.2 using {selected_count}/{total_places} places -> {total_segments} segments "
+            f"(all_hubs={all_hubs}, tolerance={segment_goal_tolerance_m:.3f} m, "
+            f"max_refines={max_refine_loops})"
         )
 
     primitives = create_motion_primitives(primitives_dir)
@@ -2009,18 +1942,10 @@ def main_part2_2(
                 break
 
             if attempt_idx < max_refine_loops:
-                LOGGER.info(
-                    "hub %d of %d, segment %d of %d, %s -> %s refine %d/%d | goal_err=%.4f m > tol=%.4f m",
-                    hub_idx,
-                    total_hubs,
-                    segment_idx,
-                    total_segments,
-                    start_name,
-                    goal_name,
-                    attempt_idx + 1,
-                    max_refine_loops,
-                    goal_error_norm,
-                    segment_goal_tolerance_m,
+                print(
+                    f"hub {hub_idx} of {total_hubs}, segment {segment_idx} of {total_segments}, "
+                    f"{start_name} -> {goal_name} refine {attempt_idx + 1}/{max_refine_loops} | "
+                    f"goal_err={goal_error_norm:.4f} m > tol={segment_goal_tolerance_m:.4f} m"
                 )
 
         segment_predicted_pose = predict_sequence_target(segment_start_pose, primitives, segment_sequence)
@@ -2054,21 +1979,12 @@ def main_part2_2(
         segment_goal_error_norms.append(goal_error_norm)
         total_predictive_corrections += predictive_corrections_used
 
-        LOGGER.info(
-            "hub %d of %d, segment %d of %d, %s -> %s | replans=%d pred_corr=%d path_points=%d seq=%s | goal_err=(%.4f m, %.4f m, %.4f m)",
-            hub_idx,
-            total_hubs,
-            segment_idx,
-            total_segments,
-            start_name,
-            goal_name,
-            replans_used,
-            predictive_corrections_used,
-            planned_path_points,
-            format_sequence(segment_sequence) if segment_sequence else "no-op",
-            goal_error_xy[0],
-            goal_error_xy[1],
-            goal_error_norm,
+        print(
+            f"hub {hub_idx} of {total_hubs}, segment {segment_idx} of {total_segments}, "
+            f"{start_name} -> {goal_name} | replans={replans_used} "
+            f"pred_corr={predictive_corrections_used} path_points={planned_path_points} "
+            f"seq={format_sequence(segment_sequence) if segment_sequence else 'no-op'} | "
+            f"goal_err=({goal_error_xy[0]:.4f} m, {goal_error_xy[1]:.4f} m, {goal_error_norm:.4f} m)"
         )
 
     if RENDER:
@@ -2095,13 +2011,12 @@ def main_part2_2(
 
     combined_sequence_match = np.allclose(pose, combined_predicted_final_pose, atol=1e-10)
     if combined_sequence_match:
-        LOGGER.info("Combined sequence replay check passed")
+        print("Combined sequence replay check passed")
     else:
-        LOGGER.warning(
-            "Combined sequence replay mismatch: dx=%.6e, dy=%.6e, dtheta=%.6e rad",
-            combined_sequence_error[0],
-            combined_sequence_error[1],
-            combined_sequence_error[2],
+        print(
+            f"Combined sequence replay mismatch: dx={combined_sequence_error[0]:.6e}, "
+            f"dy={combined_sequence_error[1]:.6e}, "
+            f"dtheta={combined_sequence_error[2]:.6e} rad"
         )
 
     segment_metrics_file = output_dir / "part2_2_segment_metrics.csv"
@@ -2212,10 +2127,10 @@ def main_part2_2(
         trajectory_plot_file,
     )
 
-    LOGGER.info("Part 2.2 segment metrics: %s", segment_metrics_file)
-    LOGGER.info("Part 2.2 combined metrics: %s", combined_metrics_file)
-    LOGGER.info("Part 2.2 path map plot: %s", map_plot_file)
-    LOGGER.info("Part 2.2 trajectory plot: %s", trajectory_plot_file)
+    print(f"Part 2.2 segment metrics: {segment_metrics_file}")
+    print(f"Part 2.2 combined metrics: {combined_metrics_file}")
+    print(f"Part 2.2 path map plot: {map_plot_file}")
+    print(f"Part 2.2 trajectory plot: {trajectory_plot_file}")
 
 
 def main_part3(
@@ -2256,13 +2171,10 @@ def main_part3(
     prm_npoints = max(200, int(prm_npoints))
     map_cellsize_m = float(map_cellsize_m)
 
-    LOGGER.info(
-        "Running Part 3: mapping + planner comparison (M=%.1f, queries=%d, prm_npoints=%d, cellsize=%.3f m, seed=%d)",
-        threshold_m,
-        query_count,
-        prm_npoints,
-        map_cellsize_m,
-        int(random_seed),
+    print(
+        f"Running Part 3: mapping + planner comparison (M={threshold_m:.1f}, "
+        f"queries={query_count}, prm_npoints={prm_npoints}, "
+        f"cellsize={map_cellsize_m:.3f} m, seed={int(random_seed)})"
     )
 
     pg = PoseGraph("data/killian.g2o.zip", lidar=True)
@@ -2335,14 +2247,10 @@ def main_part3(
     dijkstra_segments = []
 
     for query_idx, (start_xy, goal_xy) in enumerate(query_pairs, start=1):
-        LOGGER.info(
-            "Part 3 query %d/%d start=(%.1f, %.1f) goal=(%.1f, %.1f)",
-            query_idx,
-            len(query_pairs),
-            start_xy[0],
-            start_xy[1],
-            goal_xy[0],
-            goal_xy[1],
+        print(
+            f"Part 3 query {query_idx}/{len(query_pairs)} "
+            f"start=({start_xy[0]:.1f}, {start_xy[1]:.1f}) "
+            f"goal=({goal_xy[0]:.1f}, {goal_xy[1]:.1f})"
         )
 
         t0 = time.perf_counter()
@@ -2350,11 +2258,7 @@ def main_part3(
         try:
             prm_path_query = prm.query(start=start_xy, goal=goal_xy)
         except Exception as exc:
-            LOGGER.warning(
-                "PRM query failed for query %d: %s",
-                query_idx,
-                str(exc),
-            )
+            print(f"PRM query failed for query {query_idx}: {str(exc)}")
         prm_runtime = time.perf_counter() - t0
         prm_success = False
         prm_path = None
@@ -2503,18 +2407,19 @@ def main_part3(
         dijkstra_plot,
     )
 
-    LOGGER.info("Part 3 map stats: %s", map_stats_file)
-    LOGGER.info("Part 3 planner comparison: %s", planner_metrics_file)
-    LOGGER.info("Part 3 planner summary: %s", planner_summary_file)
-    LOGGER.info("Part 3 raw scanmap plot: %s", raw_scan_plot)
-    LOGGER.info("Part 3 binary map plot: %s", killian_map_plot)
-    LOGGER.info("Part 3 PRM plot: %s", prm_plot)
-    LOGGER.info("Part 3 A* plot: %s", astar_plot)
-    LOGGER.info("Part 3 Dijkstra plot: %s", dijkstra_plot)
+    print(f"Part 3 map stats: {map_stats_file}")
+    print(f"Part 3 planner comparison: {planner_metrics_file}")
+    print(f"Part 3 planner summary: {planner_summary_file}")
+    print(f"Part 3 raw scanmap plot: {raw_scan_plot}")
+    print(f"Part 3 binary map plot: {killian_map_plot}")
+    print(f"Part 3 PRM plot: {prm_plot}")
+    print(f"Part 3 A* plot: {astar_plot}")
+    print(f"Part 3 Dijkstra plot: {dijkstra_plot}")
 
 
 if __name__ == "__main__":
-    # main_part1()
-    # main_part2()
-    main_part2_2(num_waypoints=2, both_ways=True, all_hubs=True)
-    # main_part3()
+    main_part1()
+    main_part2()
+    main_part2_2(num_waypoints=None, both_ways=True, all_hubs=True)
+    main_part3()
+
