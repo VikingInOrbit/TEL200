@@ -61,7 +61,7 @@ CATCHUP_MIN_RENDER_DETAIL = 0.005
 CATCHUP_MIN_STEP_DT = 0.001
 CATCHUP_RENDER_DETAIL = 0.20
 
-DEBUG_MODE = True
+DEBUG_MODE = False
 HOLD_WINDOW = False
 LOG_PRIMITIVE_DETAILS = True
 REALTIME_CATCHUP = True
@@ -618,6 +618,7 @@ def execute_primitive(
     progress = SimpleProgressBar(total_steps, prefix=primitive_name, enabled=show_progress)
     if LOG_PRIMITIVE_DETAILS or DEBUG_MODE:
         print(
+            f"===============================================\n"
             f"Executing {primitive_name} for {repeats} repeats "
             f"(sim_dt={sim_dt:.6f}s, real_dt={render_dt:.6f}s, detail={detail:.2f})"
         )
@@ -656,8 +657,10 @@ def execute_primitive(
                     effective_detail = min(detail, CATCHUP_RENDER_DETAIL, adaptive_detail)
                     if not catchup_logged and (LOG_PRIMITIVE_DETAILS or DEBUG_MODE):
                         print(
+                            f"===============================================\n"
                             f"Realtime catch-up engaged for {primitive_name} "
                             f"(lag={lag:.3f}s, detail {detail:.2f} -> {effective_detail:.2f})"
+                            f"\n===============================================\n"
                         )
                         catchup_logged = True
 
@@ -2435,8 +2438,16 @@ def main_part3(
 
 
 if __name__ == "__main__":
+    print("================\nStarting part1")
     main_part1()
+
+    print("================\nStarting part2")
     main_part2()
+
+    print("================\nStarting part2_2")
     main_part2_2(num_waypoints=None, both_ways=True, all_hubs=True)
+
+    print("================\nStarting part3")
     main_part3()
+    print("================\nAll parts completed")
 
