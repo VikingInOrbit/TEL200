@@ -708,6 +708,19 @@ def execute_primitive(
 # Output, Metrics, And Sequence Utilities
 #=============================================================
 
+def ensure_output_parent(output_path):
+    """Return a Path with an existing parent directory.
+
+    Args:
+        output_path: Destination file path.
+
+    Returns:
+        Path: Normalized output path with parent directory created.
+    """
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    return output_path
+
 def save_trajectory_plot(trajectory, target_pose, title, output_path):
     """Save trajectory plot with start, target, and final markers.
 
@@ -733,6 +746,7 @@ def save_trajectory_plot(trajectory, target_pose, title, output_path):
     ax.grid(True, alpha=0.3)
     ax.legend()
     fig.tight_layout()
+    output_path = ensure_output_parent(output_path)
     fig.savefig(output_path, dpi=160)
     plt.close(fig)
 
@@ -779,6 +793,7 @@ def save_path_planning_map_plot(floorplan, path_segments, title, output_path):
     if path_segments:
         ax.legend(loc="upper right", fontsize=8, framealpha=0.85)
     fig.tight_layout()
+    output_path = ensure_output_parent(output_path)
     fig.savefig(output_path, dpi=160)
     plt.close(fig)
 
@@ -826,6 +841,7 @@ def save_grid_path_planning_plot(occgrid, path_segments, title, output_path):
     if path_segments:
         ax.legend(loc="upper right", fontsize=8, framealpha=0.85)
     fig.tight_layout()
+    output_path = ensure_output_parent(output_path)
     fig.savefig(output_path, dpi=160)
     plt.close(fig)
 
@@ -845,6 +861,8 @@ def save_scanmap_plots(scanmap_counts, killian_map, threshold_m, raw_output_path
     """
     scanmap_counts = np.asarray(scanmap_counts, dtype=float)
     killian_map = np.asarray(killian_map, dtype=float)
+    raw_output_path = ensure_output_parent(raw_output_path)
+    binary_output_path = ensure_output_parent(binary_output_path)
 
     finite_vals = scanmap_counts[np.isfinite(scanmap_counts)]
     if finite_vals.size:
@@ -1772,6 +1790,17 @@ def main_part2():
             output_dir / f"part2_{i}.png",
         )
         log_test_summary("part2", pose, target)
+
+
+        map_plot_file = output_dir / f"part2_{i}_path_plan_map.png"
+        path_segments = [(start, goal, path)]
+        save_path_planning_map_plot(
+            prm.occgrid.grid,
+            path_segments,
+            f"Part 2 path plan: {start} -> {goal}",
+            map_plot_file,
+        )
+
 
         if RENDER:
             stop_robot_environment()
