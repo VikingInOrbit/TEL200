@@ -36,7 +36,7 @@ L = 200 * MM
 L1 = 100 * MM
 L2 = 100 * MM
 W = 100 * MM
-PHASE_FLIPS = (False, False, True, True)
+PHASE_FLIPS = (False, False, True, True) # front right, front left, back right, back left
 PHASE_OFFSETS = (0, 100, 200, 300)
 
 # Gait and primitive definitions.
@@ -55,15 +55,15 @@ CAMERA_Z_MIN = -0.20
 
 # Runtime defaults. Update these constants directly before running.
 DT = 0.02
-RENDER = False
+RENDER = True
 
 CATCHUP_MIN_RENDER_DETAIL = 0.005
 CATCHUP_MIN_STEP_DT = 0.001
 CATCHUP_RENDER_DETAIL = 0.20
 
-DEBUG_MODE = False
+DEBUG_MODE = True
 HOLD_WINDOW = False
-LOG_PRIMITIVE_DETAILS = False
+LOG_PRIMITIVE_DETAILS = True
 REALTIME_CATCHUP = True
 REALTIME_LAG_TOL_S = 0.05
 
@@ -186,22 +186,22 @@ def build_gait_cycle(leg):
     Raises:
         RuntimeError: If IK fails for any gait sample.
     """
-    xf = 50
-    xb = -xf
-    y = -50
-    zu = -20
-    zd = -50
+    xforward = 50 # forward step length from center position
+    xbackword = -xforward # backward step length
+    y = -50 # leg outword offset from center
+    zupward = -20 # upward step height
+    zdown = -50 # downward step height
     segments = np.array(
         [
-            [xf, y, zd],
-            [xb, y, zd],
-            [xb, y, zu],
-            [xf, y, zu],
-            [xf, y, zd],
+            [xforward, y, zdown],
+            [xbackword, y, zdown],
+            [xbackword, y, zupward],
+            [xforward, y, zupward],
+            [xforward, y, zdown],
         ]
     ) * MM
 
-    x = mstraj(segments, tsegment=[3, 0.25, 0.5, 0.25], dt=0.01, tacc=0.07)
+    x = mstraj(segments, tsegment=[3, 0.25, 0.5, 0.25], dt=0.01, tacc=0.07) # leg timigs and cycle generation
     xcycle = x.q
     xcycle = np.vstack((xcycle, xcycle[-3:, :]))
     if DEBUG_MODE:
@@ -222,7 +222,7 @@ def build_gait_cycle(leg):
         qcycle[i, :] = q
         q_prev = q
 
-    return qcycle, xcycle, zu * MM, zd * MM
+    return qcycle, xcycle, zupward * MM, zdown * MM
 
 
 #=============================================================
@@ -244,14 +244,14 @@ def start_robot_environment(initial_pose):
     legs = [ERobot(leg, name=f"leg{i}") for i in range(4)]
 
     env = PyPlot()
-    env.launch(limits=[-0.4, 0.4, -0.4, 0.4, CAMERA_Z_MIN, CAMERA_Z_MAX])
+    env.launch(limits=[-0.4, 0.4, -0.4, 0.4, CAMERA_Z_MIN, CAMERA_Z_MAX]) 
 
     leg_adjustment = SE3.Rz(pi)
     leg_local_offsets = [
-        SE3(L / 2, -W / 2, 0),
-        SE3(-L / 2, -W / 2, 0),
-        SE3(L / 2, W / 2, 0) * leg_adjustment,
-        SE3(-L / 2, W / 2, 0) * leg_adjustment,
+        SE3(L / 2, -W / 2, 0), # front right
+        SE3(-L / 2, -W / 2, 0), # front left
+        SE3(L / 2, W / 2, 0) * leg_adjustment, # back right
+        SE3(-L / 2, W / 2, 0) * leg_adjustment, # back left
     ]
 
     for i, robot_leg in enumerate(legs):
@@ -442,7 +442,8 @@ def create_motion_primitives(primitives_dir):
         raise RuntimeError(
             f"Support-legs constraint violated. Minimum support legs: {min_support}"
         )
-
+    
+    # build joint sequence for one full gait cycle
     joint_sequence = build_joint_sequence(qcycle, primitive_steps, start_index=0)
 
     forward_step = np.array([FORWARD_DISTANCE_M / primitive_steps, 0.0, 0.0], dtype=float)
@@ -454,6 +455,8 @@ def create_motion_primitives(primitives_dir):
     )
     backward_step = np.array([-FORWARD_DISTANCE_M / primitive_steps, 0.0, 0.0], dtype=float)
 
+
+    # Save each primitive as a .npz file with joint sequence and body step data.
     np.savez(
         primitives_dir / "forward_10cm.npz",
         joint_sequence=joint_sequence,
@@ -483,6 +486,8 @@ def create_motion_primitives(primitives_dir):
         f"Saved motion primitives in {primitives_dir} "
         f"(steps={primitive_steps}, min_support_legs={min_support})"
     )
+
+    # Return a dictionary of primitive data for easy access during execution.
 
     return {
         "forward_10cm": {
@@ -629,6 +634,10 @@ def execute_primitive(
             pose = apply_local_body_step(pose, body_step)
             trajectory.append(pose.copy())
 
+            #=========
+            # rendering
+            #=========
+
             if render and env is not None:
                 pending_render_dt += render_dt
                 target_real_elapsed += render_dt
@@ -673,6 +682,10 @@ def execute_primitive(
                     )
                     env.step(dt=step_dt)
                     pending_render_dt = 0.0
+
+            #=========
+            # rendering end
+            #=========
 
             progress.update(1)
             if DEBUG_MODE and ((s + 1) % 50 == 0 or s == primitive["steps"] - 1):
@@ -1002,6 +1015,9 @@ def format_sequence(sequence_steps):
     """
     return ", ".join(f"{repeats}x{primitive_name}" for primitive_name, repeats in sequence_steps)
 
+#=============================================================
+# Part 1 Runner
+#=============================================================
 
 def build_part1_test_cases():
     """Build sequence-driven definitions for all required Part 1 tests.
@@ -1045,6 +1061,9 @@ def build_part1_test_cases():
             "sequence": [("forward_10cm", 10), ("turn_1deg_cw", 10)],
             "target": np.array([1.0, 0.0, np.deg2rad(-10.0)], dtype=float),
         },
+        #=============================================================
+        # exstra stres tests
+        #=============================================================
         {
             "name": "test4_A_to_E_sequence",
             "title": "Part1 Test4: A to E (4F,10CW,4F,10CCW,4F,10CW,4F)",
@@ -1080,9 +1099,7 @@ def build_part1_test_cases():
     ]
 
 
-#=============================================================
-# Part 1 Runner
-#=============================================================
+
 
 def run_part1_required_tests(base_dir, render=False, hold_window=False):
     """Run assignment-required Part 1 tests and export artifacts.
@@ -1742,16 +1759,16 @@ def main_part2():
             primitives,
             sequence,
             render=RENDER,
-            prefix="part2_draw",
+            prefix="part2",
         )
 
         save_trajectory_plot(
             traj,
             target,
-            f"part2_{i}_draw",
-            output_dir / f"part2_{i}_draw.png",
+            f"part2_{i}",
+            output_dir / f"part2_{i}.png",
         )
-        log_test_summary("part2_draw", pose, target)
+        log_test_summary("part2", pose, target)
 
         if RENDER:
             stop_robot_environment()
