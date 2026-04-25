@@ -13,9 +13,9 @@ from roboticstoolbox.backends.PyPlot import PyPlot
 from spatialgeometry import Cuboid
 from spatialmath import SE3
 
-#=============================================================
+# =============================================================
 # Globals
-#=============================================================
+# =============================================================
 
 # Global simulation handles used only when render=True.
 env = None
@@ -29,15 +29,20 @@ L = 200 * MM
 L1 = 100 * MM
 L2 = 100 * MM
 W = 100 * MM
-PHASE_FLIPS = (False, False, True, True) # front right, front left, back right, back left
+PHASE_FLIPS = (
+    False,
+    False,
+    True,
+    True,
+)  # front right, front left, back right, back left
 PHASE_OFFSETS = (0, 100, 200, 300)
 
 # Gait and primitive definitions.
 FORWARD_DISTANCE_M = 0.10
 TURN_ANGLE_DEG = 1.0
 
-ROBOT_ROT_SPEED = 10.0   # deg/s
-ROBOT_SPEED = 0.10       # m/s
+ROBOT_ROT_SPEED = 10.0  # deg/s
+ROBOT_SPEED = 0.10  # m/s
 
 # Viewer frame and camera behavior.
 CAMERA_FOLLOW = True
@@ -61,8 +66,9 @@ REALTIME_CATCHUP = True
 REALTIME_LAG_TOL_S = 0.05
 
 SHOW_PROGRESS = False
-SIM_DETAIL = 1.0         # 0-1: 1 renders all frames, 0.5 renders ~half.
-SIM_SPEED = 5.0          # viewer playback multiplier
+SIM_DETAIL = 1.0  # 0-1: 1 renders all frames, 0.5 renders ~half.
+SIM_SPEED = 5.0  # viewer playback multiplier
+
 
 def setup_logging(debug=False):
     """Configure runtime debug flag.
@@ -75,6 +81,7 @@ def setup_logging(debug=False):
     """
     global DEBUG_MODE
     DEBUG_MODE = bool(debug)
+
 
 class SimpleProgressBar:
     """Minimal terminal progress bar without external dependencies."""
@@ -128,9 +135,11 @@ class SimpleProgressBar:
             sys.stdout.write("\n")
             sys.stdout.flush()
 
-#=============================================================
+
+# =============================================================
 # Gait And Kinematic Model
-#=============================================================
+# =============================================================
+
 
 def gait(cycle, k, offset, flip):
     """Return one leg joint sample from a cyclic gait table.
@@ -150,6 +159,7 @@ def gait(cycle, k, offset, flip):
         q[0] = -q[0]
     return q
 
+
 def build_leg_model():
     """Create the assignment baseline 3-DOF leg model.
 
@@ -157,6 +167,7 @@ def build_leg_model():
         ERobot: Leg kinematic chain.
     """
     return ERobot(ET.Rz() * ET.Rx() * ET.ty(-L1) * ET.Rx() * ET.tz(-L2))
+
 
 def build_gait_cycle(leg):
     """Generate a Cartesian gait cycle and solve it to joint space.
@@ -174,22 +185,27 @@ def build_gait_cycle(leg):
     Raises:
         RuntimeError: If IK fails for any gait sample.
     """
-    xforward = 50 # forward step length from center position
-    xbackword = -xforward # backward step length
-    y = -50 # leg outword offset from center
-    zupward = -20 # upward step height
-    zdown = -50 # downward step height
-    segments = np.array(
-        [
-            [xforward, y, zdown],
-            [xbackword, y, zdown],
-            [xbackword, y, zupward],
-            [xforward, y, zupward],
-            [xforward, y, zdown],
-        ]
-    ) * MM
+    xforward = 50  # forward step length from center position
+    xbackword = -xforward  # backward step length
+    y = -50  # leg outword offset from center
+    zupward = -20  # upward step height
+    zdown = -50  # downward step height
+    segments = (
+        np.array(
+            [
+                [xforward, y, zdown],
+                [xbackword, y, zdown],
+                [xbackword, y, zupward],
+                [xforward, y, zupward],
+                [xforward, y, zdown],
+            ]
+        )
+        * MM
+    )
 
-    x = mstraj(segments, tsegment=[3, 0.25, 0.5, 0.25], dt=0.01, tacc=0.07) # leg timigs and cycle generation
+    x = mstraj(
+        segments, tsegment=[3, 0.25, 0.5, 0.25], dt=0.01, tacc=0.07
+    )  # leg timigs and cycle generation
     xcycle = x.q
     xcycle = np.vstack((xcycle, xcycle[-3:, :]))
     if DEBUG_MODE:
@@ -212,9 +228,11 @@ def build_gait_cycle(leg):
 
     return qcycle, xcycle, zupward * MM, zdown * MM
 
-#=============================================================
+
+# =============================================================
 # Rendering And Scene Helpers
-#=============================================================
+# =============================================================
+
 
 def start_robot_environment(initial_pose):
     """Create and launch the interactive robot visualization scene.
@@ -231,14 +249,14 @@ def start_robot_environment(initial_pose):
     legs = [ERobot(leg, name=f"leg{i}") for i in range(4)]
 
     env = PyPlot()
-    env.launch(limits=[-0.4, 0.4, -0.4, 0.4, CAMERA_Z_MIN, CAMERA_Z_MAX]) 
+    env.launch(limits=[-0.4, 0.4, -0.4, 0.4, CAMERA_Z_MIN, CAMERA_Z_MAX])
 
     leg_adjustment = SE3.Rz(pi)
     leg_local_offsets = [
-        SE3(L / 2, -W / 2, 0), # front right
-        SE3(-L / 2, -W / 2, 0), # front left
-        SE3(L / 2, W / 2, 0) * leg_adjustment, # back right
-        SE3(-L / 2, W / 2, 0) * leg_adjustment, # back left
+        SE3(L / 2, -W / 2, 0),  # front right
+        SE3(-L / 2, -W / 2, 0),  # front left
+        SE3(L / 2, W / 2, 0) * leg_adjustment,  # back right
+        SE3(-L / 2, W / 2, 0) * leg_adjustment,  # back left
     ]
 
     for i, robot_leg in enumerate(legs):
@@ -257,6 +275,7 @@ def start_robot_environment(initial_pose):
     update_camera(initial_pose)
     env.step()
 
+
 def stop_robot_environment():
     """Close interactive figures and clear rendering handles.
 
@@ -270,6 +289,7 @@ def stop_robot_environment():
     leg_local_offsets = None
     plt.close("all")
 
+
 def pose_to_se3(pose):
     """Convert planar pose to SE3 transform.
 
@@ -280,6 +300,7 @@ def pose_to_se3(pose):
         SE3: transform in world frame.
     """
     return SE3(pose[0], pose[1], 0) * SE3.Rz(pose[2])
+
 
 def set_render_state(pose, leg_joint_angles):
     """Update rendered body and leg states.
@@ -303,6 +324,7 @@ def set_render_state(pose, leg_joint_angles):
 
     update_camera(pose)
 
+
 def update_camera(pose):
     """Center the camera around the robot pose.
 
@@ -323,9 +345,11 @@ def update_camera(pose):
     env.ax.set_ylim(y - CAMERA_HALF_WIDTH_Y, y + CAMERA_HALF_WIDTH_Y)
     env.ax.set_zlim(CAMERA_Z_MIN, CAMERA_Z_MAX)
 
-#=============================================================
+
+# =============================================================
 # Primitive Construction And Validation
-#=============================================================
+# =============================================================
+
 
 def support_leg_count(xcycle, gait_step_index, support_threshold_z):
     """Estimate support-leg count at one gait sample.
@@ -345,6 +369,7 @@ def support_leg_count(xcycle, gait_step_index, support_threshold_z):
         if xcycle[idx, 2] <= support_threshold_z:
             count += 1
     return count
+
 
 def build_joint_sequence(qcycle, steps, start_index=0):
     """Build four-leg joint command sequence from a single-leg cycle.
@@ -367,6 +392,7 @@ def build_joint_sequence(qcycle, steps, start_index=0):
 
     return seq
 
+
 def validate_support_constraint(xcycle, steps, start_index, support_threshold_z):
     """Compute minimum support-leg count across a window.
 
@@ -386,6 +412,7 @@ def validate_support_constraint(xcycle, steps, start_index, support_threshold_z)
         support = support_leg_count(xcycle, gait_idx, support_threshold_z)
         min_support = min(min_support, support)
     return min_support
+
 
 def create_motion_primitives(primitives_dir):
     """Build and save assignment primitives in local joint-space.
@@ -421,19 +448,22 @@ def create_motion_primitives(primitives_dir):
         raise RuntimeError(
             f"Support-legs constraint violated. Minimum support legs: {min_support}"
         )
-    
+
     # build joint sequence for one full gait cycle
     joint_sequence = build_joint_sequence(qcycle, primitive_steps, start_index=0)
 
-    forward_step = np.array([FORWARD_DISTANCE_M / primitive_steps, 0.0, 0.0], dtype=float)
+    forward_step = np.array(
+        [FORWARD_DISTANCE_M / primitive_steps, 0.0, 0.0], dtype=float
+    )
     turn_step_ccw = np.array(
         [0.0, 0.0, np.deg2rad(TURN_ANGLE_DEG) / primitive_steps], dtype=float
     )
     turn_step_cw = np.array(
         [0.0, 0.0, -np.deg2rad(TURN_ANGLE_DEG) / primitive_steps], dtype=float
     )
-    backward_step = np.array([-FORWARD_DISTANCE_M / primitive_steps, 0.0, 0.0], dtype=float)
-
+    backward_step = np.array(
+        [-FORWARD_DISTANCE_M / primitive_steps, 0.0, 0.0], dtype=float
+    )
 
     # Save each primitive as a .npz file with joint sequence and body step data.
     np.savez(
@@ -495,9 +525,11 @@ def create_motion_primitives(primitives_dir):
         },
     }
 
-#=============================================================
+
+# =============================================================
 # Primitive Execution And Timing
-#=============================================================
+# =============================================================
+
 
 def apply_local_body_step(pose, body_local_step):
     """Apply one local body increment to a world-frame pose.
@@ -515,6 +547,7 @@ def apply_local_body_step(pose, body_local_step):
     dx_global = dx_local * np.cos(theta) - dy_local * np.sin(theta)
     dy_global = dx_local * np.sin(theta) + dy_local * np.cos(theta)
     return np.array([x + dx_global, y + dy_global, theta + dtheta], dtype=float)
+
 
 def primitive_step_sim_dt(primitive):
     """Compute simulated time per primitive step.
@@ -546,6 +579,7 @@ def primitive_step_sim_dt(primitive):
 
     return DT
 
+
 def primitive_step_render_dt(primitive):
     """Compute viewer step duration from simulated duration and SIM_SPEED.
 
@@ -556,6 +590,7 @@ def primitive_step_render_dt(primitive):
         float: Viewer step duration in seconds.
     """
     return primitive_step_sim_dt(primitive) / SIM_SPEED
+
 
 def execute_primitive(
     pose,
@@ -590,7 +625,9 @@ def execute_primitive(
     detail = min(max(float(SIM_DETAIL), 0.0), 1.0)
 
     total_steps = repeats * primitive["steps"]
-    progress = SimpleProgressBar(total_steps, prefix=primitive_name, enabled=show_progress)
+    progress = SimpleProgressBar(
+        total_steps, prefix=primitive_name, enabled=show_progress
+    )
     if LOG_PRIMITIVE_DETAILS or DEBUG_MODE:
         print(
             f"===============================================\n"
@@ -610,14 +647,16 @@ def execute_primitive(
             pose = apply_local_body_step(pose, body_step)
             trajectory.append(pose.copy())
 
-            #=========
+            # =========
             # rendering
-            #=========
+            # =========
 
             if render and env is not None:
                 pending_render_dt += render_dt
                 target_real_elapsed += render_dt
-                is_last_step = (repeat_idx == repeats - 1) and (s == primitive["steps"] - 1)
+                is_last_step = (repeat_idx == repeats - 1) and (
+                    s == primitive["steps"] - 1
+                )
 
                 wall_elapsed = time.perf_counter() - run_wall_start
                 lag = wall_elapsed - target_real_elapsed
@@ -629,7 +668,9 @@ def execute_primitive(
                     lag_ratio = lag / max(render_dt, 1e-9)
                     adaptive_detail = detail / (1.0 + lag_ratio)
                     adaptive_detail = max(CATCHUP_MIN_RENDER_DETAIL, adaptive_detail)
-                    effective_detail = min(detail, CATCHUP_RENDER_DETAIL, adaptive_detail)
+                    effective_detail = min(
+                        detail, CATCHUP_RENDER_DETAIL, adaptive_detail
+                    )
                     if not catchup_logged and (LOG_PRIMITIVE_DETAILS or DEBUG_MODE):
                         print(
                             f"===============================================\n"
@@ -661,9 +702,9 @@ def execute_primitive(
                     env.step(dt=step_dt)
                     pending_render_dt = 0.0
 
-            #=========
+            # =========
             # rendering end
-            #=========
+            # =========
 
             progress.update(1)
             if DEBUG_MODE and ((s + 1) % 50 == 0 or s == primitive["steps"] - 1):
@@ -675,12 +716,16 @@ def execute_primitive(
 
     progress.close()
     if LOG_PRIMITIVE_DETAILS or DEBUG_MODE:
-        print(f"Finished {primitive_name}. Final pose={np.array2string(pose, precision=4)}")
+        print(
+            f"Finished {primitive_name}. Final pose={np.array2string(pose, precision=4)}"
+        )
     return pose, np.array(trajectory)
 
-#=============================================================
+
+# =============================================================
 # Output, Metrics, And Sequence Utilities
-#=============================================================
+# =============================================================
+
 
 def ensure_output_parent(output_path):
     """Return a Path with an existing parent directory.
@@ -694,6 +739,7 @@ def ensure_output_parent(output_path):
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     return output_path
+
 
 def save_trajectory_plot(trajectory, target_pose, title, output_path):
     """Save trajectory plot with start, target, and final markers.
@@ -710,7 +756,9 @@ def save_trajectory_plot(trajectory, target_pose, title, output_path):
     fig, ax = plt.subplots(figsize=(8, 4))
     ax.plot(trajectory[:, 0], trajectory[:, 1], "b-", linewidth=1.5, label="trajectory")
     ax.scatter(trajectory[0, 0], trajectory[0, 1], c="green", s=80, label="start")
-    ax.scatter(target_pose[0], target_pose[1], c="red", s=80, marker="x", label="target")
+    ax.scatter(
+        target_pose[0], target_pose[1], c="red", s=80, marker="x", label="target"
+    )
     ax.scatter(trajectory[-1, 0], trajectory[-1, 1], c="black", s=60, label="final")
 
     ax.set_title(title)
@@ -723,6 +771,7 @@ def save_trajectory_plot(trajectory, target_pose, title, output_path):
     output_path = ensure_output_parent(output_path)
     fig.savefig(output_path, dpi=160)
     plt.close(fig)
+
 
 def save_path_planning_map_plot(floorplan, path_segments, title, output_path):
     """Save a house-map plot with PRM path segments overlaid.
@@ -752,7 +801,9 @@ def save_path_planning_map_plot(floorplan, path_segments, title, output_path):
         path = np.asarray(path, dtype=float)
         color = color_map(idx % color_map.N)
         label = f"{start_name} -> {goal_name}" if idx < 8 else None
-        ax.plot(path[:, 0], path[:, 1], color=color, linewidth=1.6, alpha=0.9, label=label)
+        ax.plot(
+            path[:, 0], path[:, 1], color=color, linewidth=1.6, alpha=0.9, label=label
+        )
         ax.scatter(path[0, 0], path[0, 1], color=color, s=18, marker="o")
         ax.scatter(path[-1, 0], path[-1, 1], color=color, s=18, marker="x")
 
@@ -769,6 +820,7 @@ def save_path_planning_map_plot(floorplan, path_segments, title, output_path):
     output_path = ensure_output_parent(output_path)
     fig.savefig(output_path, dpi=160)
     plt.close(fig)
+
 
 def save_grid_path_planning_plot(occgrid, path_segments, title, output_path):
     """Save a generic occupancy-grid plot with path overlays.
@@ -799,7 +851,9 @@ def save_grid_path_planning_plot(occgrid, path_segments, title, output_path):
         path = np.asarray(path, dtype=float)
         color = color_map(idx % color_map.N)
         label = f"{planner_name}:{segment_name}" if idx < 10 else None
-        ax.plot(path[:, 0], path[:, 1], color=color, linewidth=1.4, alpha=0.9, label=label)
+        ax.plot(
+            path[:, 0], path[:, 1], color=color, linewidth=1.4, alpha=0.9, label=label
+        )
         ax.scatter(path[0, 0], path[0, 1], color=color, s=18, marker="o")
         ax.scatter(path[-1, 0], path[-1, 1], color=color, s=18, marker="x")
 
@@ -817,7 +871,10 @@ def save_grid_path_planning_plot(occgrid, path_segments, title, output_path):
     fig.savefig(output_path, dpi=160)
     plt.close(fig)
 
-def save_scanmap_plots(scanmap_counts, killian_map, threshold_m, raw_output_path, binary_output_path):
+
+def save_scanmap_plots(
+    scanmap_counts, killian_map, threshold_m, raw_output_path, binary_output_path
+):
     """Save raw count-map and thresholded binary KillianMap plots.
 
     Args:
@@ -871,6 +928,7 @@ def save_scanmap_plots(scanmap_counts, killian_map, threshold_m, raw_output_path
     fig_bin.savefig(binary_output_path, dpi=160)
     plt.close(fig_bin)
 
+
 def format_pose_m_deg(pose):
     """Format pose [x, y, theta] as meters/degrees text.
 
@@ -881,6 +939,7 @@ def format_pose_m_deg(pose):
         str: Readable pose string.
     """
     return f"x={pose[0]:.4f} m, y={pose[1]:.4f} m, theta={np.rad2deg(pose[2]):.2f} deg"
+
 
 def append_metrics_row(metrics, test_name, pose, target):
     """Append one metrics row and return pose error.
@@ -895,16 +954,19 @@ def append_metrics_row(metrics, test_name, pose, target):
         np.ndarray: Error vector pose - target.
     """
     err = pose - target
-    metrics.append([
-        test_name,
-        pose[0],
-        pose[1],
-        np.rad2deg(pose[2]),
-        err[0],
-        err[1],
-        np.rad2deg(err[2]),
-    ])
+    metrics.append(
+        [
+            test_name,
+            pose[0],
+            pose[1],
+            np.rad2deg(pose[2]),
+            err[0],
+            err[1],
+            np.rad2deg(err[2]),
+        ]
+    )
     return err
+
 
 def log_test_summary(test_name, pose, target):
     """Log one-line summary for a completed test.
@@ -924,6 +986,7 @@ def log_test_summary(test_name, pose, target):
         f"err=({err[0]:.6f} m, {err[1]:.6f} m, {np.rad2deg(err[2]):.6f} deg)"
     )
 
+
 def reset_render_to_start(render, primitives, start_pose):
     """Reset render state to a consistent start pose.
 
@@ -936,8 +999,12 @@ def reset_render_to_start(render, primitives, start_pose):
         None.
     """
     if render and env is not None:
-        set_render_state(np.array(start_pose, dtype=float), primitives["forward_10cm"]["joint_sequence"][0])
+        set_render_state(
+            np.array(start_pose, dtype=float),
+            primitives["forward_10cm"]["joint_sequence"][0],
+        )
         env.step(dt=primitive_step_render_dt(primitives["forward_10cm"]))
+
 
 def predict_sequence_target(start_pose, primitives, sequence_steps):
     """Predict final pose by integrating sequence body-steps offline.
@@ -958,7 +1025,10 @@ def predict_sequence_target(start_pose, primitives, sequence_steps):
             pose = apply_local_body_step(pose, body_step)
     return pose
 
-def execute_sequence(start_pose, primitives, sequence_steps, render=False, prefix="sequence"):
+
+def execute_sequence(
+    start_pose, primitives, sequence_steps, render=False, prefix="sequence"
+):
     """Execute a primitive sequence and merge all segment trajectories.
 
     Args:
@@ -989,6 +1059,7 @@ def execute_sequence(start_pose, primitives, sequence_steps, render=False, prefi
 
     return pose, np.array(merged_trajectory)
 
+
 def format_sequence(sequence_steps):
     """Format sequence list for concise logging output.
 
@@ -998,11 +1069,15 @@ def format_sequence(sequence_steps):
     Returns:
         str: Joined sequence summary.
     """
-    return ", ".join(f"{repeats}x{primitive_name}" for primitive_name, repeats in sequence_steps)
+    return ", ".join(
+        f"{repeats}x{primitive_name}" for primitive_name, repeats in sequence_steps
+    )
 
-#=============================================================
+
+# =============================================================
 # Part 1 Runner
-#=============================================================
+# =============================================================
+
 
 def build_part1_test_cases():
     """Build sequence-driven definitions for all required Part 1 tests.
@@ -1046,9 +1121,9 @@ def build_part1_test_cases():
             "sequence": [("forward_10cm", 10), ("turn_1deg_cw", 10)],
             "target": np.array([1.0, 0.0, np.deg2rad(-10.0)], dtype=float),
         },
-        #=============================================================
+        # =============================================================
         # exstra stres tests
-        #=============================================================
+        # =============================================================
         {
             "name": "test4_A_to_E_sequence",
             "title": "Part1 Test4: A to E (4F,10CW,4F,10CCW,4F,10CW,4F)",
@@ -1082,6 +1157,7 @@ def build_part1_test_cases():
             "target": None,
         },
     ]
+
 
 def run_part1_required_tests(base_dir, render=False, hold_window=False):
     """Run assignment-required Part 1 tests and export artifacts.
@@ -1162,9 +1238,11 @@ def run_part1_required_tests(base_dir, render=False, hold_window=False):
     for name, primitive in primitives.items():
         print(f"{name}: min_support_legs={primitive['min_support_legs']}")
 
-#=============================================================
+
+# =============================================================
 # Part 3 Path Planning Helpers
-#=============================================================
+# =============================================================
+
 
 def estimate_killian_world_bounds(pg, sample_step=50, margin_m=2.0):
     """Estimate world-coordinate bounds for Killian scan data.
@@ -1205,6 +1283,7 @@ def estimate_killian_world_bounds(pg, sample_step=50, margin_m=2.0):
     mins -= float(margin_m)
     maxs += float(margin_m)
     return mins, maxs
+
 
 def build_scanmap_counts_from_posegraph(
     pg,
@@ -1290,6 +1369,7 @@ def build_scanmap_counts_from_posegraph(
     progress.close()
     return np.array(occgrid.grid, dtype=np.int32), occgrid
 
+
 def build_killian_binary_map(scanmap_counts, threshold_m=10):
     """Threshold integer scan evidence into binary occupancy grid.
 
@@ -1307,6 +1387,7 @@ def build_killian_binary_map(scanmap_counts, threshold_m=10):
     killian_map = np.ones_like(scanmap_counts, dtype=np.uint8)
     killian_map[scanmap_counts > float(threshold_m)] = 0
     return killian_map
+
 
 def sample_free_space_pairs(occgrid, n_pairs, rng, min_dist_cells=20.0):
     """Sample random start-goal pairs from free cells.
@@ -1344,9 +1425,12 @@ def sample_free_space_pairs(occgrid, n_pairs, rng, min_dist_cells=20.0):
         pairs.append((start_xy, goal_xy))
 
     if len(pairs) < int(n_pairs):
-        print(f"Requested {int(n_pairs)} random pairs but sampled {len(pairs)} valid pairs")
+        print(
+            f"Requested {int(n_pairs)} random pairs but sampled {len(pairs)} valid pairs"
+        )
 
     return pairs
+
 
 def grid_shortest_path(occgrid, start_xy, goal_xy, use_heuristic=True):
     """Compute shortest path on binary occupancy grid using A*/Dijkstra.
@@ -1428,6 +1512,7 @@ def grid_shortest_path(occgrid, start_xy, goal_xy, use_heuristic=True):
 
     return np.asarray(path_nodes, dtype=float)
 
+
 def path_length_cells(path):
     """Compute polyline length in grid-cell units.
 
@@ -1442,6 +1527,7 @@ def path_length_cells(path):
         return 0.0
     diffs = np.diff(path, axis=0)
     return float(np.sum(np.linalg.norm(diffs, axis=1)))
+
 
 def PRMPlanner_use():
     """Create and pre-plan a PRM planner from the house occupancy grid.
@@ -1462,6 +1548,7 @@ def PRMPlanner_use():
 
     return prm, places
 
+
 def createPath(prm, start, goal):
     """Query PRM for a path between start and goal points.
 
@@ -1475,6 +1562,7 @@ def createPath(prm, start, goal):
     """
     path = prm.query(start=start, goal=goal)
     return path
+
 
 def pathToSeq(path, start_heading_deg=0.0):
     """Convert path points to turn angles and forward primitive counts.
@@ -1507,12 +1595,15 @@ def pathToSeq(path, start_heading_deg=0.0):
         vPrev = np.array([xCurr - xPrev, yCurr - yPrev])
         vNext = np.array([xNext - xCurr, yNext - yCurr])
 
-        anglerad = np.arctan2(vPrev[0] * vNext[1] - vPrev[1] * vNext[0], np.dot(vPrev, vNext))
+        anglerad = np.arctan2(
+            vPrev[0] * vNext[1] - vPrev[1] * vNext[0], np.dot(vPrev, vNext)
+        )
         angle = np.rad2deg(anglerad)
         angles.append(round(angle))
 
         dists.append(round(np.linalg.norm(vNext) / 10))
     return angles, dists
+
 
 def followPath(angles, dists):
     """Build primitive sequence from turn and distance lists.
@@ -1538,6 +1629,7 @@ def followPath(angles, dists):
         primName = "forward_10cm"
         sequence.append((primName, dists[i]))
     return sequence
+
 
 def build_continuous_segment_pairs(
     waypoint_names,
@@ -1601,6 +1693,7 @@ def build_continuous_segment_pairs(
         return segment_pairs, segment_hub_indices, total_hubs
     return segment_pairs
 
+
 def apply_predictive_goal_correction(start_pose, goal_xy_m, primitives, sequence_steps):
     """Append a short correction sequence if prediction shows reduced goal error.
 
@@ -1658,7 +1751,9 @@ def apply_predictive_goal_correction(start_pose, goal_xy_m, primitives, sequence
 
     for correction in correction_candidates:
         candidate_sequence = base_sequence + correction
-        candidate_pose = predict_sequence_target(start_pose, primitives, candidate_sequence)
+        candidate_pose = predict_sequence_target(
+            start_pose, primitives, candidate_sequence
+        )
         candidate_goal_error = float(np.linalg.norm(candidate_pose[:2] - goal_xy_m))
         if candidate_goal_error + 1e-12 < best_goal_error:
             best_sequence = candidate_sequence
@@ -1668,9 +1763,11 @@ def apply_predictive_goal_correction(start_pose, goal_xy_m, primitives, sequence
     correction_used = len(best_sequence) > len(base_sequence)
     return best_sequence, best_pose, best_goal_error, correction_used
 
-#=============================================================
+
+# =============================================================
 # Entry Points
-#=============================================================
+# =============================================================
+
 
 def main_part1():
     """Run Part 1 test suite using module-level runtime configuration.
@@ -1691,6 +1788,7 @@ def main_part1():
     hold_window = render and HOLD_WINDOW
     run_part1_required_tests(base_dir=base_dir, render=render, hold_window=hold_window)
     stop_robot_environment()
+
 
 def main_part2():
     """Run random PRM navigation trials and export trajectory plots.
@@ -1738,7 +1836,6 @@ def main_part2():
         )
         log_test_summary("part2", pose, target)
 
-
         map_plot_file = output_dir / f"part2_{i}_path_plan_map.png"
         path_segments = [(start, goal, path)]
         save_path_planning_map_plot(
@@ -1748,9 +1845,9 @@ def main_part2():
             map_plot_file,
         )
 
-
         if RENDER:
             stop_robot_environment()
+
 
 def main_part2_2(
     num_waypoints=4,
@@ -1815,7 +1912,11 @@ def main_part2_2(
             selected_hubs = int(num_waypoints)
         selected_count = selected_hubs + 1
     else:
-        if num_waypoints is None or int(num_waypoints) <= 0 or int(num_waypoints) > total_places:
+        if (
+            num_waypoints is None
+            or int(num_waypoints) <= 0
+            or int(num_waypoints) > total_places
+        ):
             selected_count = total_places
         else:
             selected_count = int(num_waypoints)
@@ -1893,7 +1994,9 @@ def main_part2_2(
                 path = np.vstack((planner_start_xy_cm, goal_xy_cm))
 
             planned_path_points += int(path.shape[0])
-            replan_start_name = start_name if attempt_idx == 0 else f"{start_name}[r{attempt_idx}]"
+            replan_start_name = (
+                start_name if attempt_idx == 0 else f"{start_name}[r{attempt_idx}]"
+            )
             path_segments.append((replan_start_name, goal_name, path))
 
             heading_deg = float(np.rad2deg(pose[2]))
@@ -1905,11 +2008,13 @@ def main_part2_2(
                 if int(repeats) > 0
             ]
 
-            sequence, pose_prediction, _, correction_used = apply_predictive_goal_correction(
-                pose,
-                goal_xy_m,
-                primitives,
-                sequence,
+            sequence, pose_prediction, _, correction_used = (
+                apply_predictive_goal_correction(
+                    pose,
+                    goal_xy_m,
+                    primitives,
+                    sequence,
+                )
             )
             if correction_used:
                 predictive_corrections_used += 1
@@ -1943,7 +2048,9 @@ def main_part2_2(
                     f"goal_err={goal_error_norm:.4f} m > tol={segment_goal_tolerance_m:.4f} m"
                 )
 
-        segment_predicted_pose = predict_sequence_target(segment_start_pose, primitives, segment_sequence)
+        segment_predicted_pose = predict_sequence_target(
+            segment_start_pose, primitives, segment_sequence
+        )
         sequence_error = pose - segment_predicted_pose
 
         segment_metrics.append(
@@ -1993,18 +2100,28 @@ def main_part2_2(
     final_goal_name = segment_pairs[-1][1]
     final_goal_xy_cm = np.asarray(getattr(places, final_goal_name), dtype=float)
     final_goal_xy_m = final_goal_xy_cm * cm_to_m
-    final_goal_pose = np.array([final_goal_xy_m[0], final_goal_xy_m[1], 0.0], dtype=float)
+    final_goal_pose = np.array(
+        [final_goal_xy_m[0], final_goal_xy_m[1], 0.0], dtype=float
+    )
 
-    combined_predicted_final_pose = predict_sequence_target(start_pose, primitives, full_sequence)
+    combined_predicted_final_pose = predict_sequence_target(
+        start_pose, primitives, full_sequence
+    )
     combined_sequence_error = pose - combined_predicted_final_pose
     final_goal_error_xy = pose[:2] - final_goal_xy_m
     final_goal_error_norm = float(np.linalg.norm(final_goal_error_xy))
 
     segment_error_norms = np.array(segment_goal_error_norms, dtype=float)
-    mean_segment_goal_error = float(np.mean(segment_error_norms)) if segment_error_norms.size else 0.0
-    max_segment_goal_error = float(np.max(segment_error_norms)) if segment_error_norms.size else 0.0
+    mean_segment_goal_error = (
+        float(np.mean(segment_error_norms)) if segment_error_norms.size else 0.0
+    )
+    max_segment_goal_error = (
+        float(np.max(segment_error_norms)) if segment_error_norms.size else 0.0
+    )
 
-    combined_sequence_match = np.allclose(pose, combined_predicted_final_pose, atol=1e-10)
+    combined_sequence_match = np.allclose(
+        pose, combined_predicted_final_pose, atol=1e-10
+    )
     if combined_sequence_match:
         print("Combined sequence replay check passed")
     else:
@@ -2126,6 +2243,7 @@ def main_part2_2(
     print(f"Part 2.2 combined metrics: {combined_metrics_file}")
     print(f"Part 2.2 path map plot: {map_plot_file}")
     print(f"Part 2.2 trajectory plot: {trajectory_plot_file}")
+
 
 def main_part3(
     threshold_m=10,
@@ -2279,7 +2397,9 @@ def main_part3(
         )
 
         t0 = time.perf_counter()
-        astar_path = grid_shortest_path(killian_map, start_xy, goal_xy, use_heuristic=True)
+        astar_path = grid_shortest_path(
+            killian_map, start_xy, goal_xy, use_heuristic=True
+        )
         astar_runtime = time.perf_counter() - t0
         astar_success = astar_path is not None and astar_path.shape[0] >= 2
         if astar_success:
@@ -2301,7 +2421,9 @@ def main_part3(
         )
 
         t0 = time.perf_counter()
-        dijkstra_path = grid_shortest_path(killian_map, start_xy, goal_xy, use_heuristic=False)
+        dijkstra_path = grid_shortest_path(
+            killian_map, start_xy, goal_xy, use_heuristic=False
+        )
         dijkstra_runtime = time.perf_counter() - t0
         dijkstra_success = dijkstra_path is not None and dijkstra_path.shape[0] >= 2
         if dijkstra_success:
@@ -2362,9 +2484,15 @@ def main_part3(
             success_rows = [row for row in planner_rows_np if bool(row[6])]
             success_count = len(success_rows)
             success_rate = float(success_count / max(1, queries))
-            mean_runtime = float(np.mean([row[7] for row in planner_rows_np])) if planner_rows_np else np.nan
+            mean_runtime = (
+                float(np.mean([row[7] for row in planner_rows_np]))
+                if planner_rows_np
+                else np.nan
+            )
             mean_path_len = (
-                float(np.mean([row[9] for row in success_rows])) if success_rows else np.nan
+                float(np.mean([row[9] for row in success_rows]))
+                if success_rows
+                else np.nan
             )
 
             writer.writerow(
@@ -2409,6 +2537,7 @@ def main_part3(
     print(f"Part 3 PRM plot: {prm_plot}")
     print(f"Part 3 A* plot: {astar_plot}")
     print(f"Part 3 Dijkstra plot: {dijkstra_plot}")
+
 
 if __name__ == "__main__":
     print("================\nStarting part1")
