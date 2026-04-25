@@ -1,9 +1,3 @@
-"""Part 1 testbed for TEL200 walking robot.
-
-This module builds motion primitives, runs the required Part 1 tests,
-and exports trajectory plots plus numeric pose errors.
-"""
-
 from pathlib import Path
 import csv
 import heapq
@@ -28,7 +22,6 @@ env = None
 legs = None
 body = None
 leg_local_offsets = None
-
 
 MM = 0.001
 # Geometry and kinematics.
@@ -71,7 +64,6 @@ SHOW_PROGRESS = False
 SIM_DETAIL = 1.0         # 0-1: 1 renders all frames, 0.5 renders ~half.
 SIM_SPEED = 5.0          # viewer playback multiplier
 
-
 def setup_logging(debug=False):
     """Configure runtime debug flag.
 
@@ -83,7 +75,6 @@ def setup_logging(debug=False):
     """
     global DEBUG_MODE
     DEBUG_MODE = bool(debug)
-
 
 class SimpleProgressBar:
     """Minimal terminal progress bar without external dependencies."""
@@ -137,7 +128,6 @@ class SimpleProgressBar:
             sys.stdout.write("\n")
             sys.stdout.flush()
 
-
 #=============================================================
 # Gait And Kinematic Model
 #=============================================================
@@ -160,7 +150,6 @@ def gait(cycle, k, offset, flip):
         q[0] = -q[0]
     return q
 
-
 def build_leg_model():
     """Create the assignment baseline 3-DOF leg model.
 
@@ -168,7 +157,6 @@ def build_leg_model():
         ERobot: Leg kinematic chain.
     """
     return ERobot(ET.Rz() * ET.Rx() * ET.ty(-L1) * ET.Rx() * ET.tz(-L2))
-
 
 def build_gait_cycle(leg):
     """Generate a Cartesian gait cycle and solve it to joint space.
@@ -224,7 +212,6 @@ def build_gait_cycle(leg):
 
     return qcycle, xcycle, zupward * MM, zdown * MM
 
-
 #=============================================================
 # Rendering And Scene Helpers
 #=============================================================
@@ -270,7 +257,6 @@ def start_robot_environment(initial_pose):
     update_camera(initial_pose)
     env.step()
 
-
 def stop_robot_environment():
     """Close interactive figures and clear rendering handles.
 
@@ -284,7 +270,6 @@ def stop_robot_environment():
     leg_local_offsets = None
     plt.close("all")
 
-
 def pose_to_se3(pose):
     """Convert planar pose to SE3 transform.
 
@@ -295,7 +280,6 @@ def pose_to_se3(pose):
         SE3: transform in world frame.
     """
     return SE3(pose[0], pose[1], 0) * SE3.Rz(pose[2])
-
 
 def set_render_state(pose, leg_joint_angles):
     """Update rendered body and leg states.
@@ -319,7 +303,6 @@ def set_render_state(pose, leg_joint_angles):
 
     update_camera(pose)
 
-
 def update_camera(pose):
     """Center the camera around the robot pose.
 
@@ -339,7 +322,6 @@ def update_camera(pose):
     env.ax.set_xlim(x - CAMERA_HALF_WIDTH_X, x + CAMERA_HALF_WIDTH_X)
     env.ax.set_ylim(y - CAMERA_HALF_WIDTH_Y, y + CAMERA_HALF_WIDTH_Y)
     env.ax.set_zlim(CAMERA_Z_MIN, CAMERA_Z_MAX)
-
 
 #=============================================================
 # Primitive Construction And Validation
@@ -364,7 +346,6 @@ def support_leg_count(xcycle, gait_step_index, support_threshold_z):
             count += 1
     return count
 
-
 def build_joint_sequence(qcycle, steps, start_index=0):
     """Build four-leg joint command sequence from a single-leg cycle.
 
@@ -386,7 +367,6 @@ def build_joint_sequence(qcycle, steps, start_index=0):
 
     return seq
 
-
 def validate_support_constraint(xcycle, steps, start_index, support_threshold_z):
     """Compute minimum support-leg count across a window.
 
@@ -406,7 +386,6 @@ def validate_support_constraint(xcycle, steps, start_index, support_threshold_z)
         support = support_leg_count(xcycle, gait_idx, support_threshold_z)
         min_support = min(min_support, support)
     return min_support
-
 
 def create_motion_primitives(primitives_dir):
     """Build and save assignment primitives in local joint-space.
@@ -516,7 +495,6 @@ def create_motion_primitives(primitives_dir):
         },
     }
 
-
 #=============================================================
 # Primitive Execution And Timing
 #=============================================================
@@ -537,7 +515,6 @@ def apply_local_body_step(pose, body_local_step):
     dx_global = dx_local * np.cos(theta) - dy_local * np.sin(theta)
     dy_global = dx_local * np.sin(theta) + dy_local * np.cos(theta)
     return np.array([x + dx_global, y + dy_global, theta + dtheta], dtype=float)
-
 
 def primitive_step_sim_dt(primitive):
     """Compute simulated time per primitive step.
@@ -569,7 +546,6 @@ def primitive_step_sim_dt(primitive):
 
     return DT
 
-
 def primitive_step_render_dt(primitive):
     """Compute viewer step duration from simulated duration and SIM_SPEED.
 
@@ -580,7 +556,6 @@ def primitive_step_render_dt(primitive):
         float: Viewer step duration in seconds.
     """
     return primitive_step_sim_dt(primitive) / SIM_SPEED
-
 
 def execute_primitive(
     pose,
@@ -703,7 +678,6 @@ def execute_primitive(
         print(f"Finished {primitive_name}. Final pose={np.array2string(pose, precision=4)}")
     return pose, np.array(trajectory)
 
-
 #=============================================================
 # Output, Metrics, And Sequence Utilities
 #=============================================================
@@ -749,7 +723,6 @@ def save_trajectory_plot(trajectory, target_pose, title, output_path):
     output_path = ensure_output_parent(output_path)
     fig.savefig(output_path, dpi=160)
     plt.close(fig)
-
 
 def save_path_planning_map_plot(floorplan, path_segments, title, output_path):
     """Save a house-map plot with PRM path segments overlaid.
@@ -797,7 +770,6 @@ def save_path_planning_map_plot(floorplan, path_segments, title, output_path):
     fig.savefig(output_path, dpi=160)
     plt.close(fig)
 
-
 def save_grid_path_planning_plot(occgrid, path_segments, title, output_path):
     """Save a generic occupancy-grid plot with path overlays.
 
@@ -844,7 +816,6 @@ def save_grid_path_planning_plot(occgrid, path_segments, title, output_path):
     output_path = ensure_output_parent(output_path)
     fig.savefig(output_path, dpi=160)
     plt.close(fig)
-
 
 def save_scanmap_plots(scanmap_counts, killian_map, threshold_m, raw_output_path, binary_output_path):
     """Save raw count-map and thresholded binary KillianMap plots.
@@ -900,7 +871,6 @@ def save_scanmap_plots(scanmap_counts, killian_map, threshold_m, raw_output_path
     fig_bin.savefig(binary_output_path, dpi=160)
     plt.close(fig_bin)
 
-
 def format_pose_m_deg(pose):
     """Format pose [x, y, theta] as meters/degrees text.
 
@@ -911,7 +881,6 @@ def format_pose_m_deg(pose):
         str: Readable pose string.
     """
     return f"x={pose[0]:.4f} m, y={pose[1]:.4f} m, theta={np.rad2deg(pose[2]):.2f} deg"
-
 
 def append_metrics_row(metrics, test_name, pose, target):
     """Append one metrics row and return pose error.
@@ -937,7 +906,6 @@ def append_metrics_row(metrics, test_name, pose, target):
     ])
     return err
 
-
 def log_test_summary(test_name, pose, target):
     """Log one-line summary for a completed test.
 
@@ -956,7 +924,6 @@ def log_test_summary(test_name, pose, target):
         f"err=({err[0]:.6f} m, {err[1]:.6f} m, {np.rad2deg(err[2]):.6f} deg)"
     )
 
-
 def reset_render_to_start(render, primitives, start_pose):
     """Reset render state to a consistent start pose.
 
@@ -971,7 +938,6 @@ def reset_render_to_start(render, primitives, start_pose):
     if render and env is not None:
         set_render_state(np.array(start_pose, dtype=float), primitives["forward_10cm"]["joint_sequence"][0])
         env.step(dt=primitive_step_render_dt(primitives["forward_10cm"]))
-
 
 def predict_sequence_target(start_pose, primitives, sequence_steps):
     """Predict final pose by integrating sequence body-steps offline.
@@ -991,7 +957,6 @@ def predict_sequence_target(start_pose, primitives, sequence_steps):
         for _ in range(repeats * primitive["steps"]):
             pose = apply_local_body_step(pose, body_step)
     return pose
-
 
 def execute_sequence(start_pose, primitives, sequence_steps, render=False, prefix="sequence"):
     """Execute a primitive sequence and merge all segment trajectories.
@@ -1023,7 +988,6 @@ def execute_sequence(start_pose, primitives, sequence_steps, render=False, prefi
         merged_trajectory.extend(segment_traj[1:, :])
 
     return pose, np.array(merged_trajectory)
-
 
 def format_sequence(sequence_steps):
     """Format sequence list for concise logging output.
@@ -1119,9 +1083,6 @@ def build_part1_test_cases():
         },
     ]
 
-
-
-
 def run_part1_required_tests(base_dir, render=False, hold_window=False):
     """Run assignment-required Part 1 tests and export artifacts.
 
@@ -1201,7 +1162,6 @@ def run_part1_required_tests(base_dir, render=False, hold_window=False):
     for name, primitive in primitives.items():
         print(f"{name}: min_support_legs={primitive['min_support_legs']}")
 
-
 #=============================================================
 # Part 3 Path Planning Helpers
 #=============================================================
@@ -1245,7 +1205,6 @@ def estimate_killian_world_bounds(pg, sample_step=50, margin_m=2.0):
     mins -= float(margin_m)
     maxs += float(margin_m)
     return mins, maxs
-
 
 def build_scanmap_counts_from_posegraph(
     pg,
@@ -1331,7 +1290,6 @@ def build_scanmap_counts_from_posegraph(
     progress.close()
     return np.array(occgrid.grid, dtype=np.int32), occgrid
 
-
 def build_killian_binary_map(scanmap_counts, threshold_m=10):
     """Threshold integer scan evidence into binary occupancy grid.
 
@@ -1349,7 +1307,6 @@ def build_killian_binary_map(scanmap_counts, threshold_m=10):
     killian_map = np.ones_like(scanmap_counts, dtype=np.uint8)
     killian_map[scanmap_counts > float(threshold_m)] = 0
     return killian_map
-
 
 def sample_free_space_pairs(occgrid, n_pairs, rng, min_dist_cells=20.0):
     """Sample random start-goal pairs from free cells.
@@ -1390,7 +1347,6 @@ def sample_free_space_pairs(occgrid, n_pairs, rng, min_dist_cells=20.0):
         print(f"Requested {int(n_pairs)} random pairs but sampled {len(pairs)} valid pairs")
 
     return pairs
-
 
 def grid_shortest_path(occgrid, start_xy, goal_xy, use_heuristic=True):
     """Compute shortest path on binary occupancy grid using A*/Dijkstra.
@@ -1472,7 +1428,6 @@ def grid_shortest_path(occgrid, start_xy, goal_xy, use_heuristic=True):
 
     return np.asarray(path_nodes, dtype=float)
 
-
 def path_length_cells(path):
     """Compute polyline length in grid-cell units.
 
@@ -1507,7 +1462,6 @@ def PRMPlanner_use():
 
     return prm, places
 
-
 def createPath(prm, start, goal):
     """Query PRM for a path between start and goal points.
 
@@ -1521,7 +1475,6 @@ def createPath(prm, start, goal):
     """
     path = prm.query(start=start, goal=goal)
     return path
-
 
 def pathToSeq(path, start_heading_deg=0.0):
     """Convert path points to turn angles and forward primitive counts.
@@ -1561,7 +1514,6 @@ def pathToSeq(path, start_heading_deg=0.0):
         dists.append(round(np.linalg.norm(vNext) / 10))
     return angles, dists
 
-
 def followPath(angles, dists):
     """Build primitive sequence from turn and distance lists.
 
@@ -1586,7 +1538,6 @@ def followPath(angles, dists):
         primName = "forward_10cm"
         sequence.append((primName, dists[i]))
     return sequence
-
 
 def build_continuous_segment_pairs(
     waypoint_names,
@@ -1649,7 +1600,6 @@ def build_continuous_segment_pairs(
     if return_metadata:
         return segment_pairs, segment_hub_indices, total_hubs
     return segment_pairs
-
 
 def apply_predictive_goal_correction(start_pose, goal_xy_m, primitives, sequence_steps):
     """Append a short correction sequence if prediction shows reduced goal error.
@@ -1718,7 +1668,6 @@ def apply_predictive_goal_correction(start_pose, goal_xy_m, primitives, sequence
     correction_used = len(best_sequence) > len(base_sequence)
     return best_sequence, best_pose, best_goal_error, correction_used
 
-
 #=============================================================
 # Entry Points
 #=============================================================
@@ -1742,8 +1691,6 @@ def main_part1():
     hold_window = render and HOLD_WINDOW
     run_part1_required_tests(base_dir=base_dir, render=render, hold_window=hold_window)
     stop_robot_environment()
-
-
 
 def main_part2():
     """Run random PRM navigation trials and export trajectory plots.
@@ -1804,7 +1751,6 @@ def main_part2():
 
         if RENDER:
             stop_robot_environment()
-
 
 def main_part2_2(
     num_waypoints=4,
@@ -2181,7 +2127,6 @@ def main_part2_2(
     print(f"Part 2.2 path map plot: {map_plot_file}")
     print(f"Part 2.2 trajectory plot: {trajectory_plot_file}")
 
-
 def main_part3(
     threshold_m=10,
     n_queries=5,
@@ -2465,7 +2410,6 @@ def main_part3(
     print(f"Part 3 A* plot: {astar_plot}")
     print(f"Part 3 Dijkstra plot: {dijkstra_plot}")
 
-
 if __name__ == "__main__":
     print("================\nStarting part1")
     main_part1()
@@ -2479,4 +2423,3 @@ if __name__ == "__main__":
     print("================\nStarting part3")
     main_part3()
     print("================\nAll parts completed")
-
