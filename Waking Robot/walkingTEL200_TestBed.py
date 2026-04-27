@@ -8,6 +8,8 @@ import random
 import matplotlib.pyplot as plt
 import numpy as np
 from math import pi
+from matplotlib.lines import Line2D
+from matplotlib.patches import FancyArrowPatch
 from roboticstoolbox import ERobot, ET, mstraj, rtb_load_matfile, PRMPlanner
 from roboticstoolbox.backends.PyPlot import PyPlot
 from spatialgeometry import Cuboid
@@ -53,7 +55,7 @@ CAMERA_Z_MIN = -0.20
 
 # Runtime defaults. Update these constants directly before running.
 DT = 0.02
-RENDER = True
+RENDER = False
 
 CATCHUP_MIN_RENDER_DETAIL = 0.005
 CATCHUP_MIN_STEP_DT = 0.001
@@ -753,21 +755,41 @@ def save_trajectory_plot(trajectory, target_pose, title, output_path):
     Returns:
         None.
     """
-    fig, ax = plt.subplots(figsize=(8, 4))
+    fig, ax = plt.subplots(figsize=(7, 7))
     ax.plot(trajectory[:, 0], trajectory[:, 1], "b-", linewidth=1.5, label="trajectory")
-    ax.scatter(trajectory[0, 0], trajectory[0, 1], c="green", s=80, label="start")
-    ax.scatter(
-        target_pose[0], target_pose[1], c="red", s=80, marker="x", label="target"
-    )
-    ax.scatter(trajectory[-1, 0], trajectory[-1, 1], c="black", s=60, label="final")
+
+    def add_pose_arrow(pose, color, label, length=0.12):
+        x, y, theta = float(pose[0]), float(pose[1]), float(pose[2])
+        arrow = FancyArrowPatch(
+            (x, y),
+            (x + length * np.cos(theta), y + length * np.sin(theta)),
+            arrowstyle="simple,head_length=12,head_width=10,tail_width=3",
+            mutation_scale=1.0,
+            linewidth=0.0,
+            color=color,
+        )
+        ax.add_patch(arrow)
+        return Line2D([0], [0], color=color, lw=2.5, label=label)
+
+    legend_handles = [
+        Line2D([0], [0], color="b", lw=1.5, label="trajectory"),
+        add_pose_arrow(trajectory[0], "green", "start"),
+        add_pose_arrow(target_pose, "red", "target"),
+        add_pose_arrow(trajectory[-1], "black", "final"),
+    ]
 
     ax.set_title(title)
     ax.set_xlabel("x [m]")
     ax.set_ylabel("y [m]")
     ax.set_aspect("equal", adjustable="box")
     ax.grid(True, alpha=0.3)
-    ax.legend()
-    fig.tight_layout()
+    ax.legend(
+        handles=legend_handles,
+        loc="upper left",
+        bbox_to_anchor=(1.02, 1.0),
+        framealpha=0.9,
+    )
+    fig.tight_layout(rect=[0, 0, 0.80, 1])
     output_path = ensure_output_parent(output_path)
     fig.savefig(output_path, dpi=160)
     plt.close(fig)
@@ -785,7 +807,7 @@ def save_path_planning_map_plot(floorplan, path_segments, title, output_path):
     Returns:
         None.
     """
-    fig, ax = plt.subplots(figsize=(10, 7))
+    fig, ax = plt.subplots(figsize=(7, 7))
 
     height, width = floorplan.shape
     ax.imshow(
@@ -815,8 +837,10 @@ def save_path_planning_map_plot(floorplan, path_segments, title, output_path):
     ax.set_ylim(0, height)
     ax.grid(False)
     if path_segments:
-        ax.legend(loc="upper right", fontsize=8, framealpha=0.85)
-    fig.tight_layout()
+        ax.legend(
+            loc="upper left", bbox_to_anchor=(1.02, 1.0), fontsize=8, framealpha=0.85
+        )
+    fig.tight_layout(rect=[0, 0, 0.80, 1])
     output_path = ensure_output_parent(output_path)
     fig.savefig(output_path, dpi=160)
     plt.close(fig)
@@ -834,7 +858,7 @@ def save_grid_path_planning_plot(occgrid, path_segments, title, output_path):
     Returns:
         None.
     """
-    fig, ax = plt.subplots(figsize=(10, 7))
+    fig, ax = plt.subplots(figsize=(7, 7))
 
     occgrid = np.asarray(occgrid)
     height, width = occgrid.shape
@@ -865,8 +889,10 @@ def save_grid_path_planning_plot(occgrid, path_segments, title, output_path):
     ax.set_ylim(0, height)
     ax.grid(False)
     if path_segments:
-        ax.legend(loc="upper right", fontsize=8, framealpha=0.85)
-    fig.tight_layout()
+        ax.legend(
+            loc="upper left", bbox_to_anchor=(1.02, 1.0), fontsize=8, framealpha=0.85
+        )
+    fig.tight_layout(rect=[0, 0, 0.80, 1])
     output_path = ensure_output_parent(output_path)
     fig.savefig(output_path, dpi=160)
     plt.close(fig)
@@ -899,7 +925,7 @@ def save_scanmap_plots(
     else:
         color_limit = 1.0
 
-    fig_raw, ax_raw = plt.subplots(figsize=(10, 7))
+    fig_raw, ax_raw = plt.subplots(figsize=(7, 7))
     im = ax_raw.imshow(
         scanmap_counts,
         origin="lower",
@@ -914,17 +940,17 @@ def save_scanmap_plots(
     ax_raw.set_aspect("equal", adjustable="box")
     cbar = fig_raw.colorbar(im, ax=ax_raw)
     cbar.set_label("scan evidence count")
-    fig_raw.tight_layout()
+    fig_raw.tight_layout(rect=[0, 0, 0.88, 1])
     fig_raw.savefig(raw_output_path, dpi=160)
     plt.close(fig_raw)
 
-    fig_bin, ax_bin = plt.subplots(figsize=(10, 7))
+    fig_bin, ax_bin = plt.subplots(figsize=(7, 7))
     ax_bin.imshow(killian_map, origin="lower", cmap="gray_r", interpolation="nearest")
     ax_bin.set_title(f"Part 3: Binary KillianMap (free if scans > {threshold_m})")
     ax_bin.set_xlabel("x [cell]")
     ax_bin.set_ylabel("y [cell]")
     ax_bin.set_aspect("equal", adjustable="box")
-    fig_bin.tight_layout()
+    fig_bin.tight_layout(rect=[0, 0, 0.88, 1])
     fig_bin.savefig(binary_output_path, dpi=160)
     plt.close(fig_bin)
 
@@ -2547,7 +2573,7 @@ if __name__ == "__main__":
     main_part2()
 
     print("================\nStarting part2_2")
-    main_part2_2(num_waypoints=None, both_ways=True, all_hubs=True)
+    # main_part2_2(num_waypoints=None, both_ways=True, all_hubs=True)
 
     print("================\nStarting part3")
     main_part3()
