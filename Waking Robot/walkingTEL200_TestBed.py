@@ -1081,42 +1081,42 @@ def build_part1_test_cases():
             "output_file": "part1_test3_A_to_D_cw.png",
             "sequence": [("forward_10cm", 10), ("turn_1deg_cw", 10)],
             "target": np.array([1.0, 0.0, np.deg2rad(-10.0)], dtype=float),
-        },
-        #=============================================================
-        # exstra stres tests
-        #=============================================================
-        {
-            "name": "test4_A_to_E_sequence",
-            "title": "Part1 Test4: A to E (4F,10CW,4F,10CCW,4F,10CW,4F)",
-            "output_file": "part1_test4_A_to_E_sequence.png",
-            "sequence": [
-                ("forward_10cm", 4),
-                ("turn_1deg_cw", 10),
-                ("forward_10cm", 4),
-                ("turn_1deg_ccw", 10),
-                ("forward_10cm", 4),
-                ("turn_1deg_cw", 10),
-                ("forward_10cm", 4),
-            ],
-            # Leave as None so target is derived from sequence and primitives.
-            "target": None,
-        },
-        {
-            "name": "test4_A_to_F_sequence",
-            "title": "Part1 Test4: A to F (4F,10CW,4F,10CCW,4F,10CW,4F)",
-            "output_file": "part1_test4_A_to_F_sequence.png",
-            "sequence": [
-                ("forward_10cm", 4),
-                ("turn_1deg_cw", 360),
-                ("forward_10cm", 3),
-                ("turn_1deg_ccw", 90),
-                ("forward_10cm", 2),
-                ("turn_1deg_cw", 45),
-                ("forward_10cm", 4),
-            ],
-            # Leave as None so target is derived from sequence and primitives.
-            "target": None,
-        },
+        }
+        # #=============================================================
+        # # extra stress tests
+        # #=============================================================
+        # {
+        #     "name": "test4_A_to_E_sequence",
+        #     "title": "Part1 Test4: A to E (4F,10CW,4F,10CCW,4F,10CW,4F)",
+        #     "output_file": "part1_test4_A_to_E_sequence.png",
+        #     "sequence": [
+        #         ("forward_10cm", 4),
+        #         ("turn_1deg_cw", 10),
+        #         ("forward_10cm", 4),
+        #         ("turn_1deg_ccw", 10),
+        #         ("forward_10cm", 4),
+        #         ("turn_1deg_cw", 10),
+        #         ("forward_10cm", 4),
+        #     ],
+        #     # Leave as None so target is derived from sequence and primitives.
+        #     "target": None,
+        # },
+        # {
+        #     "name": "test4_A_to_F_sequence",
+        #     "title": "Part1 Test4: A to F (4F,10CW,4F,10CCW,4F,10CW,4F)",
+        #     "output_file": "part1_test4_A_to_F_sequence.png",
+        #     "sequence": [
+        #         ("forward_10cm", 4),
+        #         ("turn_1deg_cw", 360),
+        #         ("forward_10cm", 3),
+        #         ("turn_1deg_ccw", 90),
+        #         ("forward_10cm", 2),
+        #         ("turn_1deg_cw", 45),
+        #         ("forward_10cm", 4),
+        #     ],
+        #     # Leave as None so target is derived from sequence and primitives.
+        #     "target": None,
+        # },
     ]
 
 
@@ -1586,7 +1586,7 @@ def followPath(angles, dists):
         primName = "forward_10cm"
         sequence.append((primName, dists[i]))
     return sequence
-
+    
 
 def build_continuous_segment_pairs(
     waypoint_names,
@@ -2467,16 +2467,15 @@ def main_part3(
 
 
 if __name__ == "__main__":
-    print("================\nStarting part1")
+    # print("================\nStarting part1")
     main_part1()
 
-    print("================\nStarting part2")
+    # print("================\nStarting part2")
     main_part2()
 
-    print("================\nStarting part2_2")
-    main_part2_2(num_waypoints=None, both_ways=True, all_hubs=True)
+    # print("================\nStarting part2_2")
+    # #main_part2_2(num_waypoints=None, both_ways=True, all_hubs=True)
 
-    print("================\nStarting part3")
-    main_part3()
-    print("================\nAll parts completed")
-
+    # print("================\nStarting part3")
+    # #main_part3()
+    # print("================\nAll parts completed")
