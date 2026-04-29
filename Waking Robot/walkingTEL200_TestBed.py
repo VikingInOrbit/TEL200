@@ -994,6 +994,40 @@ def append_metrics_row(metrics, test_name, pose, target):
     return err
 
 
+def append_part2_metrics_row(metrics, test_name, start_pose, pose, target):
+    """Append one Part 2 metrics row with start, end, target, and error poses.
+
+    Args:
+        metrics: Mutable list of CSV row entries.
+        test_name: Test case identifier.
+        start_pose: Start pose [x, y, theta].
+        pose: Final pose [x, y, theta].
+        target: Target pose [x, y, theta].
+
+    Returns:
+        np.ndarray: Error vector pose - target.
+    """
+    err = pose - target
+    metrics.append(
+        [
+            test_name,
+            start_pose[0],
+            start_pose[1],
+            np.rad2deg(start_pose[2]),
+            pose[0],
+            pose[1],
+            np.rad2deg(pose[2]),
+            target[0],
+            target[1],
+            np.rad2deg(target[2]),
+            err[0],
+            err[1],
+            np.rad2deg(err[2]),
+        ]
+    )
+    return err
+
+
 def log_test_summary(test_name, pose, target):
     """Log one-line summary for a completed test.
 
@@ -1146,7 +1180,7 @@ def build_part1_test_cases():
             "output_file": "part1_test3_A_to_D_cw.png",
             "sequence": [("forward_10cm", 10), ("turn_1deg_cw", 10)],
             "target": np.array([1.0, 0.0, np.deg2rad(-10.0)], dtype=float),
-        }
+        },
         # #=============================================================
         # # extra stress tests
         # #=============================================================
@@ -1631,6 +1665,52 @@ def pathToSeq(path, start_heading_deg=0.0):
     return angles, dists
 
 
+def predict_path_target(path, start_pose, start_heading_deg=0.0):
+    """Predict the ideal pose from an unrounded path polyline.
+
+    Args:
+        path: Path point sequence returned by PRM query.
+        start_pose: Initial pose [x, y, theta].
+        start_heading_deg: Initial heading of the robot in degrees.
+
+    Returns:
+        np.ndarray: Ideal final pose obtained by following the exact path geometry.
+    """
+    path = np.asarray(path, dtype=float)
+    pose = np.array(start_pose, dtype=float)
+    if path.shape[0] < 2:
+        return pose
+
+    heading = np.deg2rad(start_heading_deg)
+    v_start = np.array([np.cos(heading), np.sin(heading)])
+
+    v_next = np.array(path[1] - path[0], dtype=float)
+    turn_rad = np.arctan2(
+        v_start[0] * v_next[1] - v_start[1] * v_next[0], np.dot(v_start, v_next)
+    )
+    pose[2] += turn_rad
+    pose = apply_local_body_step(
+        pose, np.array([np.linalg.norm(v_next) / 100.0, 0.0, 0.0], dtype=float)
+    )
+
+    for i in range(2, path.shape[0]):
+        x_prev, y_prev = path[i - 2]
+        x_curr, y_curr = path[i - 1]
+        x_next, y_next = path[i]
+
+        v_prev = np.array([x_curr - x_prev, y_curr - y_prev], dtype=float)
+        v_next = np.array([x_next - x_curr, y_next - y_curr], dtype=float)
+        turn_rad = np.arctan2(
+            v_prev[0] * v_next[1] - v_prev[1] * v_next[0], np.dot(v_prev, v_next)
+        )
+        pose[2] += turn_rad
+        pose = apply_local_body_step(
+            pose, np.array([np.linalg.norm(v_next) / 100.0, 0.0, 0.0], dtype=float)
+        )
+
+    return pose
+
+
 def followPath(angles, dists):
     """Build primitive sequence from turn and distance lists.
 
@@ -1655,7 +1735,7 @@ def followPath(angles, dists):
         primName = "forward_10cm"
         sequence.append((primName, dists[i]))
     return sequence
-    
+
 
 def build_continuous_segment_pairs(
     waypoint_names,
@@ -1828,13 +1908,18 @@ def main_part2():
     output_dir.mkdir(parents=True, exist_ok=True)
     prm, places = PRMPlanner_use()
     placelist = list(places)
+    metrics = []
+    cm_to_m = 0.01
 
     for i in range(5):
         start, goal = random.sample(placelist, 2)
         startroom = getattr(places, start)
         goalroom = getattr(places, goal)
 
-        pose = np.array([0.0, 0.0, 0.0], dtype=float)
+        start_xy_cm = np.asarray(startroom, dtype=float)
+        pose = np.array(
+            [start_xy_cm[0] * cm_to_m, start_xy_cm[1] * cm_to_m, 0.0], dtype=float
+        )
         if RENDER:
             start_robot_environment(initial_pose=pose)
 
@@ -1845,7 +1930,8 @@ def main_part2():
         angles, dists = pathToSeq(path)
         sequence = followPath(angles, dists)
 
-        target = predict_sequence_target(pose, primitives, sequence)
+        start_pose = pose.copy()
+        target = predict_path_target(path, start_pose)
         pose, traj = execute_sequence(
             pose,
             primitives,
@@ -1860,6 +1946,7 @@ def main_part2():
             f"part2_{i}",
             output_dir / f"part2_{i}.png",
         )
+        append_part2_metrics_row(metrics, f"part2_{i}", start_pose, pose, target)
         log_test_summary("part2", pose, target)
 
         map_plot_file = output_dir / f"part2_{i}_path_plan_map.png"
@@ -1873,6 +1960,30 @@ def main_part2():
 
         if RENDER:
             stop_robot_environment()
+
+    metrics_file = output_dir / "part2_metrics.csv"
+    with metrics_file.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(
+            [
+                "test_name",
+                "start_x_m",
+                "start_y_m",
+                "start_theta_deg",
+                "final_x_m",
+                "final_y_m",
+                "final_theta_deg",
+                "target_x_m",
+                "target_y_m",
+                "target_theta_deg",
+                "error_x_m",
+                "error_y_m",
+                "error_theta_deg",
+            ]
+        )
+        writer.writerows(metrics)
+
+    print(f"Part 2 metrics written to: {metrics_file}")
 
 
 def main_part2_2(
@@ -2567,7 +2678,7 @@ def main_part3(
 
 if __name__ == "__main__":
     # print("================\nStarting part1")
-    main_part1()
+    # main_part1()
 
     # print("================\nStarting part2")
     main_part2()
