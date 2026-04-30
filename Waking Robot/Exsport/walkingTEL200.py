@@ -2685,14 +2685,14 @@ def main_part3(
 
 if __name__ == "__main__":
     # print("================\nStarting part1")
-    # main_part1()
+    main_part1()
 
     # print("================\nStarting part2")
     main_part2()
 
     # print("================\nStarting part2_2")
-    # #main_part2_2(num_waypoints=None, both_ways=True, all_hubs=True)
+    # main_part2_2(num_waypoints=None, both_ways=True, all_hubs=True)
 
     # print("================\nStarting part3")
-    # #main_part3()
+    main_part3()
     # print("================\nAll parts completed")
