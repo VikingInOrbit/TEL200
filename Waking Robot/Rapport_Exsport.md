@@ -64,6 +64,14 @@ An occupancy map is a representation of the environment that indicates where obs
 
 The environment is divided into a grid where each cell stores a probability of being occupied. In this sense, it can be viewed as a 2D representation derived from a 3D point cloud.
 
+\subsection{Ray Tracing and Evidence Accumulation}
+
+Ray tracing is a fundamental technique in scan-based mapping where laser rays are traced through a grid from the sensor to the detected obstacles. As each ray passes through grid cells, it accumulates evidence in two ways: cells along the ray path record free-space evidence (indicating they do not contain obstacles), while the cell at the ray's end-point (where the laser reflects) records occupancy evidence (indicating an obstacle is present). By combining evidence from many scans, a map can be built where each cell contains an integer count representing how many times that cell was observed as either free or occupied. This count map is then thresholded to produce a binary occupancy map.
+
+\subsection{Bresenham's Line Algorithm}
+
+Bresenham's line algorithm is an efficient method for tracing a straight line through a discrete grid. It determines which grid cells a line passes through using only integer arithmetic, making it computationally efficient. In the context of scan mapping, Bresenham's algorithm is used to determine all grid cells that lie along the path of a laser ray, allowing rapid accumulation of free-space evidence along the entire ray path rather than just at the impact point.
+
 \subsection{PRM}
 
 %Deliberate method used for path planning, since the map of the house is known, (Dette skal i diskusjon)
@@ -85,6 +93,10 @@ f(n) = g(n) + h(n)
 where $g(n)$ is the cost from the start node to the current node, and $h(n)$ is the estimated cost from the current node to the goal.
 
 $A^*$ always expands the node with the lowest $f(n)$ value, making it efficient while still guaranteeing an optimal path if the heuristic is admissible.
+
+\subsection{Pose Error}
+
+Pose error refers to the deviation between the robot's estimated pose and the true pose after executing motion primitives. This error arises from the discretization of motion commands (e.g., fixed 10 cm steps and 1° turns) and accumulates over successive movements. Tracking pose error is essential for understanding the reliability and accuracy of the navigation pipeline when primitives are chained together over longer paths.
 
 \subsection{Unicycle model}
 
@@ -126,7 +138,13 @@ These primitives are stored as joint-space trajectories in \texttt{.npz} files, 
 
 \subsection{Body Motion and Coordinate Transformation}
 
-The robot does not move directly in world coordinates. Instead, each primitive is applied in the local robot frame, and the pose is updated after every step. The update follows a planar rigid-body motion model,
+The robot does not move directly in world coordinates. Instead, each primitive is applied in the local robot frame, and the pose is updated after every step. The update follows a planar rigid-body motion model given by equations \eqref{eq:body-motion}. Since primitives move in fixed increments (10 cm or 1°), the actual path may deviate slightly from intended paths, resulting in accumulated pose error. The functions \texttt{execute_primitive} and \texttt{execute_sequence} track these errors across sequences of primitives, recording the total accumulated error in $x$, $y$, and $\theta$ at the end of each path.
+
+\begin{align}
+x*{k+1} &= x_k + \cos(\theta_k)\Delta x*\mathrm{local}, \label{eq:body-motion} \\
+y*{k+1} &= y_k + \sin(\theta_k)\Delta y*\mathrm{local}, \\
+\theta*{k+1} &= \theta_k + \Delta\theta*\mathrm{local}.
+\end{align}
 
 This is the bridge between the gait and navigation. A forward primitive becomes a forward move on the map, and a turn primitive changes the heading before the next segment starts. \texttt{apply_local_body_step} implements this update, while \texttt{execute_primitive} and \texttt{execute_sequence} record the resulting trajectories and pose errors.
 
@@ -147,7 +165,9 @@ The function \texttt{pathToSeq} computes the turn needed to face the next segmen
 
 \subsection{Localization and Mapping}
 
-Part 3 uses LiDAR data from the MIT Killian Court dataset. A pose graph with robot poses and scans is loaded first, and each scan is traced through the grid to build a raw evidence map. Cells along each ray accumulate free-space evidence, while the hit cell receives evidence for occupancy. The result is an integer count map rather than a binary grid.
+Part 3 uses LiDAR data from the MIT Killian Court dataset. A pose graph with robot poses and scans is loaded first, and each scan is traced through the grid to build a raw evidence map. The scanMap cell values represent evidence counts accumulated from all scans in the pose graph. Specifically, for each LiDAR scan, Bresenham's line algorithm traces each laser ray through the grid: every cell along the ray path receives one increment (representing free-space evidence), and the final cell where the ray terminates receives one increment (representing obstacle/occupancy evidence). After processing all scans, each cell contains an integer count equal to the total number of times it was observed as either free or occupied. Cells with high counts were confirmed as free space by many rays, while cells with low or zero counts are either rarely observed or predominantly marked as occupied.
+
+The result is an integer count map rather than a binary grid. This count map preserves the statistical evidence from the full dataset, and different threshold values can later be applied to generate different occupancy maps.
 
 The scan evidence is built with ray tracing based on Bresenham's line method. This gives a simple grid representation of what the robot has observed, and it is suitable for thresholding into a binary occupancy map.
 
@@ -158,7 +178,7 @@ The scan evidence is built with ray tracing based on Bresenham's line method. Th
 \label{fig:method-raw-scanmap}
 \end{figure}
 
-\paragraph{Binary occupancy conversion}
+Binary occupancy conversion:
 The count map is converted into the KillianMap with a threshold $M$. A cell is marked free when its scan count exceeds $M$, and all other cells are treated as occupied or unknown:
 
 \[
@@ -223,7 +243,22 @@ Figure \ref{fig:Part2Error} shows the average of the total accumulated error due
 \label{fig:Part2Error}
 \end{figure}
 
-Figure \ref{fig:Part2Error} contain data for error in the robots angle, the robots offset along the y-axis and the robots offset along the x-axis.
+Figure \ref{fig:Part2Error} shows the total accumulated error in the robot's angle, the robot's offset along the x-axis, and the robot's offset along the y-axis. Table \ref{tab:Part2ErrorComparison} summarizes the average pose errors across the 5 start-goal pairs tested in Part 2.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{l c}
+Error Type & Average Value \\
+\hline
+Angle error ($\Delta\theta$) & $0.7^\circ$ \\
+X-axis offset ($\Delta x$) & $\approx 0.015\,\mathrm{m}$ (1.5 cm) \\
+Y-axis offset ($\Delta y$) & $\approx 0.04\,\mathrm{m}$ (4 cm) \\
+
+    \end{tabular}
+    \caption{Average accumulated pose errors during Part 2 navigation for 5 start-goal pairs.}
+    \label{tab:Part2ErrorComparison}
+
+\end{table}
 
 \subsection{Part 3}
 
@@ -311,9 +346,11 @@ PRM is useful because the roadmap can be reused, but its result depends on how w
 
 The scan map shows how the occupancy grid is built from measurements instead of being given directly. The Bresenham ray tracing adds free-space evidence along each ray and obstacle evidence at the hit cell. Thresholding the count map with $M=10$ converts it into a binary KillianMap. This step is sensitive to noise, grid size, and rounding, so cells near borders and thin structures are the most likely to change classification. That is expected, and it is why the map should be treated as an estimate rather than an exact copy of the environment.
 
-Snakk om Table \ref{tab:ComparisonPart3}
+Planner Comparison on KillianMap:
 
-The unicycle model is a useful abstraction for this project because it matches the motion pattern used in the implementation: move forward, turn in place, then move forward again. This makes the primitive-based system easy to connect to navigation. At the same time, it is still a simplification of the real four-legged robot because it does not model slip, balance, or the physical constraints of a legged body. The model is therefore good for control, but not a full physical description.
+Table \ref{tab:ComparisonPart3} reveals important differences between the three planning algorithms on the KillianMap. PRM succeeded on only 1 of 5 queries, while both $A^*$ and Dijkstra succeeded on 2 queries each. This disparity arises because PRM depends on the quality of the randomly sampled roadmap. When the map contains narrow passages, sparse connectivity in the roadmap, or unlucky sampling, PRM may fail to find paths even when they exist. Grid-based methods like $A^*$ and Dijkstra, by contrast, explore the map systematically cell by cell, guaranteeing they will find a path if one exists on the discretized grid.
+
+Regarding runtime, PRM requires approximately 0.949 seconds on average, nearly five times slower than $A^*$ (0.189 s) and Dijkstra (0.213 s). This overhead comes from roadmap construction and nearest-neighbor searches. For this particular LiDAR-derived map with its irregular geometry, grid-based planning is more efficient. Wavefront propagation or potential field methods might offer additional benefits: wavefront methods (like breadth-first search) guarantee completeness and are well-suited to dense grid representations, while potential fields could provide smooth, collision-free paths naturally.
 
 The walking gait can be reused as a motion library, the library can be combined into global paths, and the same idea can be extended from the House map to scan-based planning on Killian Court data. The main error sources are the expected ones: limited primitive resolution, accumulated pose error, occupancy-grid uncertainty, and simplifying assumptions in the robot model. Even with those limits, the pipeline works as intended.
 
