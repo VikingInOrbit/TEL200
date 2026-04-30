@@ -1,8 +1,8 @@
 # ============================================================
 # Waking Robot: Walking Primitive Generation and Execution
-# made by: Gabriel Røer, Brage
+# made by: Brage Bromset Bestvold, Gabriel Røer
 # For: Tel200 26V
-# Date:
+# Date: 30.04.2026
 # ============================================================
 
 from pathlib import Path
